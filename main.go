@@ -5,23 +5,31 @@ import (
 	"net/http"
 )
 
+// Readiness handler
+func readinessHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("OK"))
+}
+
 func main() {
-	// Create a new ServeMux
+	const port = "8080"
+	const filePathRoot = "."
+
 	mux := http.NewServeMux()
 
-	// Create a file server handler using the current directory
-	fileServer := http.FileServer(http.Dir("."))
+	// Register readiness endpoint
+	mux.HandleFunc("/healthz", readinessHandler)
 
-	// Register the file server handler for the root path
-	mux.Handle("/", fileServer)
+	// File server for /app/ path, stripping the /app prefix
+	fileServer := http.FileServer(http.Dir(filePathRoot))
+	mux.Handle("/app/", http.StripPrefix("/app", fileServer))
 
-	// Create a new http.Server struct
 	server := &http.Server{
-		Addr:    ":8080",
+		Addr:    ":" + port,
 		Handler: mux,
 	}
 
-	// Start the server
-	log.Println("Server started on http://localhost:8080")
+	log.Println("Server started on http://localhost:" + port)
 	log.Fatal(server.ListenAndServe())
 }
