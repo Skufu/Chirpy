@@ -1,0 +1,271 @@
+# Chirpy API Documentation
+
+**Date: April 22, 2024**
+
+## Validate Chirp Endpoint
+
+### Overview
+We implemented a new endpoint that validates whether a chirp meets the Chirpy platform requirements (specifically that it's 140 characters or less).
+
+### Implementation Details
+- **Endpoint:** `POST /api/validate_chirp`
+- **Request Format:**
+  ```json
+  {
+    "body": "Text content of the chirp"
+  }
+  ```
+- **Success Response (200 OK):**
+  ```json
+  {
+    "valid": true
+  }
+  ```
+- **Error Response (400 Bad Request):**
+  ```json
+  {
+    "error": "Chirp is too long"
+  }
+  ```
+
+### Technical Implementation
+1. The endpoint is registered in `main.go` using Go 1.22+ pattern style:
+   ```go
+   mux.HandleFunc("POST /api/validate_chirp", apiCfg.handlerValidateChirp)
+   ```
+
+2. The handler function in `validate_chirp.go`:
+   - Decodes the JSON request body
+   - Validates the chirp length (must be ≤ 140 characters)
+   - Returns appropriate response based on validation result
+
+### What I Learned
+1. **Go 1.22+ HTTP router patterns**: The new pattern style in Go 1.22+ allows specifying HTTP methods directly in the pattern string.
+   ```go
+   // Old style (pre-Go 1.22)
+   mux.HandleFunc("/api/endpoint", func(w http.ResponseWriter, r *http.Request) {
+     if r.Method != http.MethodPost {
+       http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+       return
+     }
+     // Handle POST request...
+   })
+   
+   // New style (Go 1.22+)
+   mux.HandleFunc("POST /api/endpoint", handlePostRequest)
+   ```
+
+2. **JSON response formatting**: Using `json.Marshal()` automatically handles proper formatting without newlines or extra spaces:
+   ```go
+   // Outputs: {"valid":true} without pretty formatting
+   dat, _ := json.Marshal(validResponse{Valid: true})
+   ```
+
+3. **HTTP status codes**: Different status codes should be used for different types of responses:
+   - `200 OK`: For successful operations
+   - `400 Bad Request`: For client errors (validation failures)
+   - `500 Internal Server Error`: For server-side errors
+
+4. **Error handling**: It's important to log errors for debugging purposes before sending error responses.
+
+---
+
+## Update: Profanity Filter
+**Date: April 22, 2024, 12:12 PM**
+
+### Overview
+Added profanity filtering to the `/api/validate_chirp` endpoint to replace inappropriate words with asterisks.
+
+### Changes Made
+1. Modified the endpoint response to return the cleaned chirp body instead of a validity boolean:
+   - **New Response Format:**
+     ```json
+     {
+       "cleaned_body": "Filtered text content of the chirp"
+     }
+     ```
+
+2. Added a list of profane words to filter:
+   - kerfuffle
+   - sharbert
+   - fornax
+
+3. Implemented case-insensitive matching for profane words
+   - For example, "KERFUFFLE", "Kerfuffle", and "kerfuffle" are all replaced
+
+4. Excluded words with punctuation from filtering
+   - For example, "Sharbert!" is not filtered because it contains punctuation
+
+### Implementation Details
+1. Created a helper function `cleanChirp()` to filter profane words:
+   ```go
+   func cleanChirp(body string) string {
+     words := strings.Split(body, " ")
+     for i, word := range words {
+       wordLower := strings.ToLower(word)
+       for _, profane := range profaneWords {
+         if wordLower == profane {
+           words[i] = "****"
+           break
+         }
+       }
+     }
+     return strings.Join(words, " ")
+   }
+   ```
+
+2. Updated the handler response to use the new `cleanedResponse` type:
+   ```go
+   respondWithJSON(w, http.StatusOK, cleanedResponse{
+     CleanedBody: cleanedBody,
+   })
+   ```
+
+### What I Learned
+1. **String manipulation in Go**: Using `strings.Split()` and `strings.Join()` to work with word arrays
+2. **Case insensitivity**: Using `strings.ToLower()` for case-insensitive comparison
+3. **Modular code design**: Breaking functionality into separate functions for better testing and maintenance 
+
+---
+
+## Database Setup and User Management
+**Date: April 22, 2024, 8:18 PM**
+
+### Overview
+Implemented database connectivity using PostgreSQL and migrations with Goose. Created a user table and set up SQLC for type-safe database queries.
+
+### Database Schema
+1. Created the users table with the following schema:
+   ```sql
+   CREATE TABLE users (
+     id uuid PRIMARY KEY,
+     created_at TIMESTAMP NOT NULL,
+     updated_at TIMESTAMP NOT NULL,
+     email TEXT NOT NULL UNIQUE
+   );
+   ```
+
+### Migration Setup
+1. Set up Goose migrations in `sql/schema` directory
+2. Created migration file `001_users.sql` with Up/Down migrations:
+   ```sql
+   -- +goose Up
+   CREATE TABLE users (...)
+   
+   -- +goose Down
+   DROP TABLE users;
+   ```
+3. Migration commands:
+   ```bash
+   # Run migrations up
+   goose postgres "postgres://user:pass@localhost:5432/chirpy?sslmode=disable" up
+   
+   # Rollback migrations
+   goose postgres "postgres://user:pass@localhost:5432/chirpy?sslmode=disable" down
+   ```
+
+### Database Queries with SQLC
+1. Created type-safe queries in `sql/queries/users.sql`:
+   ```sql
+   -- name: CreateUser :one
+   INSERT INTO users (id, created_at, updated_at, email)
+   VALUES (
+       gen_random_uuid(),
+       NOW(),
+       NOW(),
+       $1
+   )
+   RETURNING *;
+   ```
+2. Generated Go code with `sqlc generate`
+
+### API Configuration
+1. Set up database connection in `main.go`:
+   ```go
+   dbURL := os.Getenv("DB_URL")
+   db, err := sql.Open("postgres", dbURL)
+   // ...
+   dbQueries := database.New(db)
+   ```
+2. Added database access to the API configuration:
+   ```go
+   apiCfg := apiConfig{
+     fileserverHits: atomic.Int32{},
+     db:             dbQueries,
+   }
+   ```
+
+### Environment Setup
+1. Created `.env` file to store connection string securely:
+   ```
+   DB_URL="postgres://user:pass@localhost:5432/chirpy?sslmode=disable"
+   ```
+2. Added `.env` to `.gitignore` for security
+3. Used `godotenv` to load environment variables
+
+### Dependencies Added
+- github.com/lib/pq - PostgreSQL driver
+- github.com/google/uuid - UUID handling
+- github.com/joho/godotenv - Environment variable loading from .env file
+
+### What I Learned
+1. **Migrations with Goose**: How to create and run database migrations
+2. **SQLC**: Generating type-safe Go code from SQL queries
+3. **Environment Variables**: Secure storage of connection strings
+4. **PostgreSQL Features**: Using UUIDs and timestamps effectively
+5. **Go SQL Interface**: Working with database/sql package and drivers 
+
+## Database Connection Fix
+**Date: April 23, 2024, 9:33 PM**
+
+### Overview
+Fixed issues with the database connection and reset endpoint functionality.
+
+### Issues Identified
+1. The database connection was failing with error `role "postgres" does not exist`
+2. The reset endpoint was not properly handling database errors
+
+### Changes Made
+1. Updated the database connection string in `.env` file to use the local user instead of "postgres":
+   ```
+   DB_URL="postgres://adriangabriellfrancisco:@localhost:5432/chirpy?sslmode=disable"
+   ```
+
+2. Improved error handling in the reset endpoint:
+   ```go
+   func (cfg *apiConfig) handlerReset(w http.ResponseWriter, r *http.Request) {
+     // Check if in dev environment
+     if cfg.platform != "dev" {
+       respondWithError(w, http.StatusForbidden, "Forbidden")
+       return
+     }
+
+     err := cfg.db.DeleteAllUsers(context.Background())
+     if err != nil {
+       log.Printf("Failed to reset users: %v", err)
+       respondWithError(w, http.StatusInternalServerError, "Failed to reset users")
+       return
+     }
+
+     // Reset hits counter
+     cfg.fileserverHits.Store(0)
+
+     respondWithJSON(w, http.StatusOK, map[string]string{
+       "status": "Reset successful",
+     })
+   }
+   ```
+
+3. Enhanced the reset response format to use consistent JSON:
+   - **New Response Format:**
+     ```json
+     {
+       "status": "Reset successful"
+     }
+     ```
+
+### What I Learned
+1. **PostgreSQL User Management**: Properly configuring database connection strings for local development
+2. **Error Handling**: Implementing more robust error handling with proper logging
+3. **JSON Response Consistency**: Using helper functions like `respondWithJSON` to ensure consistent API responses
+4. **Environment Configuration**: The importance of environment-specific configuration for local development 
