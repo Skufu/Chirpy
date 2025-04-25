@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"log"
 	"net/http"
 	"os"
@@ -11,7 +10,6 @@ import (
 	"time"
 
 	"github.com/Skufu/HTTPS-Bootdev/Chirpy/internal/database"
-	"github.com/google/uuid"
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 )
@@ -22,45 +20,6 @@ type apiConfig struct {
 	platform       string
 }
 
-type User struct {
-	ID        uuid.UUID `json:"id"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	Email     string    `json:"email"`
-}
-
-func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Request) {
-	type requestBody struct {
-		Email string `json:"email"`
-	}
-
-	decoder := json.NewDecoder(r.Body)
-	reqBody := requestBody{}
-	err := decoder.Decode(&reqBody)
-	if err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
-		return
-	}
-
-	user, err := cfg.db.CreateUser(context.Background(), reqBody.Email)
-	if err != nil {
-		http.Error(w, "Failed to create user", http.StatusInternalServerError)
-		return
-	}
-
-	// Map database user to response user
-	responseUser := User{
-		ID:        user.ID,
-		Email:     user.Email,
-		CreatedAt: user.CreatedAt,
-		UpdatedAt: user.UpdatedAt,
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(responseUser)
-}
-
 func (cfg *apiConfig) handlerReset(w http.ResponseWriter, r *http.Request) {
 	// Check if in dev environment
 	if cfg.platform != "dev" {
@@ -68,8 +27,16 @@ func (cfg *apiConfig) handlerReset(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Try using the DeleteAllUsers method
-	err := cfg.db.DeleteAllUsers(context.Background())
+	// Delete chirps first due to the foreign key constraint
+	err := cfg.db.DeleteAllChirps(context.Background())
+	if err != nil {
+		log.Printf("Failed to reset chirps: %v", err)
+		respondWithError(w, http.StatusInternalServerError, "Failed to reset chirps")
+		return
+	}
+
+	// Delete users after chirps
+	err = cfg.db.DeleteAllUsers(context.Background())
 	if err != nil {
 		log.Printf("Failed to reset users: %v", err)
 		respondWithError(w, http.StatusInternalServerError, "Failed to reset users")
@@ -117,6 +84,19 @@ func main() {
 		log.Fatalf("Failed to create users table: %v", err)
 	}
 
+	_, err = db.ExecContext(ctx, `
+	CREATE TABLE IF NOT EXISTS chirps (
+		id uuid PRIMARY KEY,
+		created_at TIMESTAMP NOT NULL,
+		updated_at TIMESTAMP NOT NULL,
+		body TEXT NOT NULL,
+		user_id uuid NOT NULL,
+		FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+	)`)
+	if err != nil {
+		log.Fatalf("Failed to create chirps table: %v", err)
+	}
+
 	dbQueries := database.New(db)
 
 	const port = "8080"
@@ -139,8 +119,8 @@ func main() {
 	mux.HandleFunc("GET /api/healthz", handlerReadiness)
 	mux.HandleFunc("GET /admin/metrics", apiCfg.handlerMetrics)
 	mux.HandleFunc("POST /admin/reset", apiCfg.handlerReset)
-	mux.HandleFunc("POST /api/validate_chirp", apiCfg.handlerValidateChirp)
 	mux.HandleFunc("POST /api/users", apiCfg.handlerCreateUser)
+	mux.HandleFunc("POST /api/chirps", apiCfg.handlerCreateChirp)
 
 	server := &http.Server{
 		Addr:    ":" + port,

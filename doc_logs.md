@@ -269,3 +269,199 @@ Fixed issues with the database connection and reset endpoint functionality.
 2. **Error Handling**: Implementing more robust error handling with proper logging
 3. **JSON Response Consistency**: Using helper functions like `respondWithJSON` to ensure consistent API responses
 4. **Environment Configuration**: The importance of environment-specific configuration for local development 
+
+## Added Chirps Database and API
+**Date: May 2, 2024, 3:45 PM**
+
+### Overview
+Implemented the chirps table in the database and created API endpoints to save chirps with user association.
+
+### Database Schema
+1. Created the chirps table with the following schema:
+   ```sql
+   CREATE TABLE chirps (
+       id uuid PRIMARY KEY,
+       created_at TIMESTAMP NOT NULL,
+       updated_at TIMESTAMP NOT NULL,
+       body TEXT NOT NULL,
+       user_id uuid NOT NULL,
+       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+   );
+   ```
+
+### Migration Setup
+1. Created migration file `002_chirps.sql` with Up/Down migrations:
+   ```sql
+   -- +goose Up
+   CREATE TABLE chirps (
+       id uuid PRIMARY KEY,
+       created_at TIMESTAMP NOT NULL,
+       updated_at TIMESTAMP NOT NULL,
+       body TEXT NOT NULL,
+       user_id uuid NOT NULL,
+       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+   );
+   
+   -- +goose Down
+   DROP TABLE chirps;
+   ```
+
+### Database Queries with SQLC
+1. Created type-safe queries in `sql/queries/chirps.sql`:
+   ```sql
+   -- name: CreateChirp :one
+   INSERT INTO chirps (id, created_at, updated_at, body, user_id)
+   VALUES (
+       gen_random_uuid(),
+       NOW(),
+       NOW(),
+       $1,
+       $2
+   )
+   RETURNING *;
+   ```
+
+### Model and Database Implementations
+1. Added Chirp struct to `internal/database/models.go`:
+   ```go
+   type Chirp struct {
+       ID        uuid.UUID
+       CreatedAt time.Time
+       UpdatedAt time.Time
+       Body      string
+       UserID    uuid.UUID
+   }
+   ```
+
+2. Added CreateChirpParams struct for parameters:
+   ```go
+   type CreateChirpParams struct {
+       Body   string
+       UserID uuid.UUID
+   }
+   ```
+
+3. Implemented the CreateChirp function in `internal/database/chirps.sql.go`:
+   ```go
+   func (q *Queries) CreateChirp(ctx context.Context, params CreateChirpParams) (Chirp, error) {
+       row := q.db.QueryRowContext(ctx, `
+           INSERT INTO chirps (id, created_at, updated_at, body, user_id)
+           VALUES (
+               gen_random_uuid(),
+               NOW(),
+               NOW(),
+               $1,
+               $2
+           )
+           RETURNING id, created_at, updated_at, body, user_id
+       `, params.Body, params.UserID)
+       var i Chirp
+       err := row.Scan(
+           &i.ID,
+           &i.CreatedAt,
+           &i.UpdatedAt,
+           &i.Body,
+           &i.UserID,
+       )
+       return i, err
+   }
+   ```
+
+4. Added DeleteAllChirps function for reset functionality:
+   ```go
+   func (q *Queries) DeleteAllChirps(ctx context.Context) error {
+       _, err := q.db.ExecContext(ctx, "DELETE FROM chirps")
+       return err
+   }
+   ```
+
+### API Endpoint Implementation
+1. Updated the handlerCreateChirp function to save chirps to the database:
+   ```go
+   func (cfg *apiConfig) handlerCreateChirp(w http.ResponseWriter, r *http.Request) {
+       // Parse request parameters
+       decoder := json.NewDecoder(r.Body)
+       params := parameters{}
+       err := decoder.Decode(&params)
+       if err != nil {
+           respondWithError(w, http.StatusInternalServerError, "Something went wrong")
+           return
+       }
+
+       // Validate chirp length
+       const maxChirpLength = 140
+       if len(params.Body) > maxChirpLength {
+           respondWithError(w, http.StatusBadRequest, "Chirp is too long")
+           return
+       }
+
+       // Clean the chirp body by replacing profane words
+       cleanedBody := cleanChirp(params.Body)
+
+       // Save chirp to database
+       userID, err := uuid.Parse(params.UserID)
+       if err != nil {
+           respondWithError(w, http.StatusBadRequest, "Invalid user ID")
+           return
+       }
+
+       chirp, err := cfg.db.CreateChirp(context.Background(), database.CreateChirpParams{
+           Body:   cleanedBody,
+           UserID: userID,
+       })
+       if err != nil {
+           respondWithError(w, http.StatusInternalServerError, "Error creating chirp")
+           return
+       }
+
+       // Return response with 201 Created status
+       respondWithJSON(w, http.StatusCreated, chirpResponse{
+           ID:        chirp.ID.String(),
+           CreatedAt: chirp.CreatedAt,
+           UpdatedAt: chirp.UpdatedAt,
+           Body:      chirp.Body,
+           UserID:    chirp.UserID.String(),
+       })
+   }
+   ```
+
+2. Updated reset handler to delete chirps before users due to foreign key constraints:
+   ```go
+   func (cfg *apiConfig) handlerReset(w http.ResponseWriter, r *http.Request) {
+       // Check if in dev environment
+       if cfg.platform != "dev" {
+           respondWithError(w, http.StatusForbidden, "Forbidden")
+           return
+       }
+
+       // Delete chirps first due to the foreign key constraint
+       err := cfg.db.DeleteAllChirps(context.Background())
+       if err != nil {
+           log.Printf("Failed to reset chirps: %v", err)
+           respondWithError(w, http.StatusInternalServerError, "Failed to reset chirps")
+           return
+       }
+
+       // Delete users after chirps
+       err = cfg.db.DeleteAllUsers(context.Background())
+       if err != nil {
+           log.Printf("Failed to reset users: %v", err)
+           respondWithError(w, http.StatusInternalServerError, "Failed to reset users")
+           return
+       }
+
+       // Reset hits counter
+       cfg.fileserverHits.Store(0)
+
+       respondWithJSON(w, http.StatusOK, map[string]string{
+           "status": "Reset successful",
+       })
+   }
+   ```
+
+### What I Learned
+1. **Foreign Key Constraints**: How to set up relationships between tables with ON DELETE CASCADE
+2. **Database Transaction Order**: When resetting tables with foreign keys, you must delete child records before parent records
+3. **HTTP Status Codes**: Using 201 Created for successful resource creation
+4. **UUID Parsing**: Converting string UUIDs to the UUID type using the uuid.Parse function
+5. **Profanity Filtering**: Implementing content moderation before storing user-generated content 

@@ -1,22 +1,28 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"net/http"
 	"strings"
+	"time"
+
+	"github.com/Skufu/HTTPS-Bootdev/Chirpy/internal/database"
+	"github.com/google/uuid"
 )
 
 type parameters struct {
-	Body string `json:"body"`
+	Body   string `json:"body"`
+	UserID string `json:"user_id"`
 }
 
-type validResponse struct {
-	Valid bool `json:"valid"`
-}
-
-type cleanedResponse struct {
-	CleanedBody string `json:"cleaned_body"`
+type chirpResponse struct {
+	ID        string    `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	Body      string    `json:"body"`
+	UserID    string    `json:"user_id"`
 }
 
 // List of profane words to filter
@@ -45,7 +51,7 @@ func cleanChirp(body string) string {
 	return strings.Join(words, " ")
 }
 
-func (cfg *apiConfig) handlerValidateChirp(w http.ResponseWriter, r *http.Request) {
+func (cfg *apiConfig) handlerCreateChirp(w http.ResponseWriter, r *http.Request) {
 	decoder := json.NewDecoder(r.Body)
 	params := parameters{}
 	err := decoder.Decode(&params)
@@ -64,8 +70,30 @@ func (cfg *apiConfig) handlerValidateChirp(w http.ResponseWriter, r *http.Reques
 	// Clean the chirp body by replacing profane words
 	cleanedBody := cleanChirp(params.Body)
 
-	// Return the cleaned body
-	respondWithJSON(w, http.StatusOK, cleanedResponse{
-		CleanedBody: cleanedBody,
+	// Convert user_id string to UUID
+	userID, err := uuid.Parse(params.UserID)
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, "Invalid user ID")
+		return
+	}
+
+	// Save the chirp to the database
+	chirp, err := cfg.db.CreateChirp(context.Background(), database.CreateChirpParams{
+		Body:   cleanedBody,
+		UserID: userID,
+	})
+	if err != nil {
+		log.Printf("Error creating chirp: %s", err)
+		respondWithError(w, http.StatusInternalServerError, "Error creating chirp")
+		return
+	}
+
+	// Respond with the created chirp
+	respondWithJSON(w, http.StatusCreated, chirpResponse{
+		ID:        chirp.ID.String(),
+		CreatedAt: chirp.CreatedAt,
+		UpdatedAt: chirp.UpdatedAt,
+		Body:      chirp.Body,
+		UserID:    chirp.UserID.String(),
 	})
 }

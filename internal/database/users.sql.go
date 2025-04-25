@@ -36,7 +36,14 @@ const deleteAllUsers = `-- name: DeleteAllUsers :exec
 DELETE FROM users
 `
 
+// DeleteAllUsers deletes all users from the database
 func (q *Queries) DeleteAllUsers(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, deleteAllUsers)
+	_, err := q.db.ExecContext(ctx, "DELETE FROM users")
+	return err
+}
+
+// DeleteAllChirps deletes all chirps from the database
+func (q *Queries) DeleteAllChirps(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, "DELETE FROM chirps")
 	return err
 }
