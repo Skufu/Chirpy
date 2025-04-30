@@ -619,3 +619,254 @@ This endpoint provides the foundation for several future features:
 - PostgreSQL database
 - SQLC for type-safe database queries
 - UUID for unique identifiers 
+
+## Password Hashing Implementation
+**Date: April 30, 2025, 7:39 PM**
+
+### Overview
+Added password hashing capabilities to the Chirpy application by implementing a database migration to add a `hashed_password` column to the users table and creating a new `auth` package for securely handling passwords.
+
+### Database Changes
+1. Created a new migration file `003_users_add_password.sql` to add the `hashed_password` column to the users table:
+   ```sql
+   -- +goose Up
+   ALTER TABLE users 
+   ADD COLUMN hashed_password TEXT NOT NULL DEFAULT 'unset';
+   
+   -- +goose Down
+   ALTER TABLE users
+   DROP COLUMN hashed_password;
+   ```
+
+2. The migration adds a non-null TEXT column with a default value of 'unset', which ensures that existing users in the database don't cause constraint violations.
+
+3. Applied the migration using direct SQL since there were issues with the migration tool and the tables already existed:
+   ```bash
+   psql "postgres://user:password@localhost:5432/chirpy?sslmode=disable" -c "ALTER TABLE users ADD COLUMN hashed_password TEXT NOT NULL DEFAULT 'unset';"
+   ```
+
+### Auth Package Implementation
+1. Created a new `internal/auth` package with password hashing functionality:
+   ```go
+   package auth
+   
+   import (
+       "golang.org/x/crypto/bcrypt"
+   )
+   
+   // HashPassword takes a plain text password and returns a bcrypt hash
+   func HashPassword(password string) (string, error) {
+       // Generate a bcrypt hash using the default cost (10)
+       bytes, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+       if err != nil {
+           return "", err
+       }
+       
+       // Return the hash as a string
+       return string(bytes), nil
+   }
+   
+   // CheckPasswordHash compares a bcrypt hashed password with a plain text password
+   // Returns nil if the passwords match, or an error if they don't
+   func CheckPasswordHash(hash, password string) error {
+       // Compare the stored hash with the provided password
+       return bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
+   }
+   ```
+
+2. Added comprehensive tests in `internal/auth/password_test.go` to verify both functions:
+   - `TestHashPassword`: Ensures hashing produces non-empty results that differ from the input
+   - `TestCheckPasswordHash`: Verifies that correct passwords validate and incorrect ones fail
+
+### Dependencies Added
+- `golang.org/x/crypto/bcrypt` - Industry-standard password hashing library that includes:
+  - Salt generation to prevent rainbow table attacks
+  - Work factor adjustments to resist brute force attacks
+  - Secure comparison to prevent timing attacks
+
+### Security Considerations
+1. **Password Storage**: We're following security best practices by:
+   - Never storing passwords in plain text
+   - Using bcrypt, a purpose-built password hashing algorithm
+   - Using the default cost factor (10) which provides a good balance between security and performance
+
+2. **Default Value**: Setting a default value of 'unset' ensures that:
+   - Existing users can be identified as needing to set a password
+   - The application can check for this value and prompt users to update their passwords
+
+### What I Learned
+1. **Secure Password Handling**: 
+   - The importance of using specialized algorithms like bcrypt for password storage
+   - How bcrypt automatically handles salt generation and secure comparison
+
+2. **Go Cryptography Libraries**:
+   - How to use the `golang.org/x/crypto/bcrypt` package
+   - The difference between encryption (reversible) and hashing (one-way)
+
+3. **Database Migration Patterns**:
+   - How to add non-null columns to existing tables using DEFAULT values
+   - Troubleshooting migration issues when tables already exist
+
+4. **Package Organization**:
+   - Creating a separate `auth` package to isolate security-related functionality
+   - Writing comprehensive tests for security-critical code
+
+### Next Steps
+This implementation provides the foundation for several future security features:
+1. User registration with password protection
+2. Secure login functionality
+3. Password change capabilities
+4. Account recovery workflows
+
+These changes will allow Chirpy to implement proper user authentication in future updates. 
+
+## User Authentication Implementation
+**Date: April 30, 2025, 8:08 PM**
+
+### Overview
+Enhanced the Chirpy API with user authentication capabilities by implementing password handling in the user creation endpoint and adding a new login endpoint for credential verification.
+
+### API Changes
+
+#### Updated User Creation Endpoint
+1. Modified the `POST /api/users` endpoint to accept and hash passwords:
+   ```json
+   // Request
+   {
+     "email": "user@example.com",
+     "password": "secure-password"
+   }
+   
+   // Response - 201 Created
+   {
+     "id": "f0f87ec2-a8b5-48cc-b66a-a85ce7c7b862",
+     "created_at": "2021-07-07T00:00:00Z",
+     "updated_at": "2021-07-07T00:00:00Z",
+     "email": "user@example.com"
+   }
+   ```
+
+2. Security improvements:
+   - Passwords are now required for user creation
+   - Passwords are hashed using bcrypt before storage
+   - Hashed passwords are never included in API responses
+
+#### New Login Endpoint
+1. Added a new `POST /api/login` endpoint that validates user credentials:
+   ```json
+   // Request
+   {
+     "email": "user@example.com",
+     "password": "secure-password"
+   }
+   
+   // Response - 200 OK (successful login)
+   {
+     "id": "f0f87ec2-a8b5-48cc-b66a-a85ce7c7b862",
+     "created_at": "2021-07-07T00:00:00Z",
+     "updated_at": "2021-07-07T00:00:00Z",
+     "email": "user@example.com"
+   }
+   
+   // Response - 401 Unauthorized (failed login)
+   {
+     "error": "Incorrect email or password"
+   }
+   ```
+
+2. Authentication flow:
+   - Looks up the user by email
+   - Compares the provided password with the stored hash
+   - Returns the user object on success (without password)
+   - Returns a generic error on failure (doesn't specify whether email or password was incorrect)
+
+### Database Changes
+1. Added a `GetUserByEmail` query to support login functionality:
+   ```sql
+   -- name: GetUserByEmail :one
+   SELECT * FROM users
+   WHERE email = $1;
+   ```
+
+2. Updated the `CreateUser` query to store the hashed password:
+   ```sql
+   -- name: CreateUser :one
+   INSERT INTO users (id, created_at, updated_at, email, hashed_password)
+   VALUES (
+       gen_random_uuid(),
+       NOW(),
+       NOW(),
+       $1,
+       $2
+   )
+   RETURNING *;
+   ```
+
+### Security Considerations
+1. **Password Management**:
+   - Raw passwords are only handled in memory and never stored
+   - Bcrypt is used with its default work factor (10) for optimal security/performance balance
+   - Password comparison is done using constant-time comparison to prevent timing attacks
+
+2. **Login Endpoint Security**:
+   - Generic error messages prevent user enumeration attacks
+   - Failed login attempts are logged for security monitoring
+   - Proper HTTP status codes (401 for auth failure, 400 for bad requests)
+   - No session tokens yet (to be added in a future update)
+
+3. **HTTPS Requirement**:
+   - The API assumes HTTPS in production to protect sensitive data in transit
+   - Raw passwords can be safely transmitted over HTTPS
+
+### Implementation Details
+1. Created a new `handlerLogin` function to handle login requests:
+   ```go
+   func (cfg *apiConfig) handlerLogin(w http.ResponseWriter, r *http.Request) {
+       // Parse login credentials from request body
+       // Look up user by email
+       // Compare password hash
+       // Return user data on success or error on failure
+   }
+   ```
+
+2. Updated `handlerCreateUser` to handle password hashing:
+   ```go
+   // Hash the password
+   hashedPassword, err := auth.HashPassword(reqBody.Password)
+   if err != nil {
+       log.Printf("Error hashing password: %v", err)
+       respondWithError(w, http.StatusInternalServerError, "Error creating user")
+       return
+   }
+   
+   // Create user with email and hashed password
+   user, err := cfg.db.CreateUser(context.Background(), database.CreateUserParams{
+       Email:          reqBody.Email,
+       HashedPassword: hashedPassword,
+   })
+   ```
+
+### What I Learned
+1. **Security Best Practices**:
+   - How to design authentication endpoints with security in mind
+   - The importance of not revealing sensitive information in error messages
+   - Using appropriate HTTP status codes for different authentication scenarios
+
+2. **Password Handling in Go**:
+   - How to securely hash and validate passwords using bcrypt
+   - Dealing with the performance implications of secure password hashing
+   - Planning for future security enhancements like rate limiting
+
+3. **API Design**:
+   - Keeping API responses clean and focused on the necessary data
+   - Balancing security with usability in authentication endpoints
+   - Consistent error handling patterns across endpoints
+
+### Next Steps
+This implementation provides the foundation for several future security features:
+1. JWT token implementation for authenticated requests
+2. Password reset functionality
+3. Account locking after failed login attempts
+4. Two-factor authentication options
+
+These changes will allow Chirpy to implement proper user authentication in future updates. 
