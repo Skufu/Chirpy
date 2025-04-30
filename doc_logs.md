@@ -465,3 +465,157 @@ Implemented the chirps table in the database and created API endpoints to save c
 3. **HTTP Status Codes**: Using 201 Created for successful resource creation
 4. **UUID Parsing**: Converting string UUIDs to the UUID type using the uuid.Parse function
 5. **Profanity Filtering**: Implementing content moderation before storing user-generated content 
+
+## Single Chirp Retrieval Endpoint
+**Date: April 30, 2025, 7:18 PM**
+
+### Overview
+Implemented a new endpoint that allows users to retrieve a single chirp by its unique ID. This functionality is essential for viewing individual chirps directly, especially as the number of chirps in the system grows.
+
+### Implementation Details
+
+#### 1. Database Query
+First, I added a new SQL query in `sql/queries/chirps.sql` to fetch a single chirp by its ID:
+
+```sql
+-- name: GetChirp :one
+SELECT * FROM chirps
+WHERE id = $1;
+```
+
+This SQL query retrieves all columns from the `chirps` table where the ID matches the provided parameter.
+
+#### 2. Code Generation
+I ran the `sqlc generate` command to create the Go implementation of this query. This automatically generated a `GetChirp` function in the `database` package that accepts a UUID and returns a single chirp:
+
+```go
+func (q *Queries) GetChirp(ctx context.Context, id uuid.UUID) (Chirp, error) {
+    row := q.db.QueryRowContext(ctx, getChirp, id)
+    var i Chirp
+    err := row.Scan(
+        &i.ID,
+        &i.CreatedAt,
+        &i.UpdatedAt,
+        &i.Body,
+        &i.UserID,
+    )
+    return i, err
+}
+```
+
+#### 3. Handler Implementation
+Created a new handler function `handlerGetChirp` in `handler_get_chirp.go`:
+
+```go
+func (cfg *apiConfig) handlerGetChirp(w http.ResponseWriter, r *http.Request) {
+    // Get chirp ID from path parameter
+    chirpIDStr := r.PathValue("chirpID")
+    
+    // Parse the ID into a UUID
+    chirpID, err := uuid.Parse(chirpIDStr)
+    if err != nil {
+        log.Printf("Invalid chirp ID format: %s", err)
+        respondWithError(w, http.StatusBadRequest, "Invalid chirp ID")
+        return
+    }
+
+    // Fetch the chirp from the database
+    chirp, err := cfg.db.GetChirp(context.Background(), chirpID)
+    if err != nil {
+        if err == sql.ErrNoRows {
+            // Chirp not found
+            respondWithError(w, http.StatusNotFound, "Chirp not found")
+            return
+        }
+        // Other database error
+        log.Printf("Error fetching chirp: %s", err)
+        respondWithError(w, http.StatusInternalServerError, "Failed to fetch chirp")
+        return
+    }
+
+    // Return the chirp in the response format
+    respondWithJSON(w, http.StatusOK, chirpResponse{
+        ID:        chirp.ID.String(),
+        CreatedAt: chirp.CreatedAt,
+        UpdatedAt: chirp.UpdatedAt,
+        Body:      chirp.Body,
+        UserID:    chirp.UserID.String(),
+    })
+}
+```
+
+This handler:
+- Uses `r.PathValue("chirpID")` to extract the chirp ID from the URL path parameter
+- Parses the string ID into a UUID using `uuid.Parse()`
+- Queries the database for the chirp with the matching ID
+- Handles different error scenarios:
+  - Returns 400 Bad Request for invalid UUID format
+  - Returns 404 Not Found if no chirp exists with that ID
+  - Returns 500 Internal Server Error for database errors
+- Returns the chirp with a 200 OK status if found
+
+#### 4. Route Registration
+Added the new endpoint to `main.go` using Go 1.22+ pattern matching syntax:
+
+```go
+mux.HandleFunc("GET /api/chirps/{chirpID}", apiCfg.handlerGetChirp)
+```
+
+This registers the handler for GET requests to paths matching the pattern `/api/chirps/{chirpID}`, where `{chirpID}` is a path parameter.
+
+### Testing
+Tested the endpoint by:
+1. Creating a user:
+   ```bash
+   curl -X POST http://localhost:8080/api/users \
+     -H "Content-Type: application/json" \
+     -d '{"email": "saul@bettercall.com"}'
+   ```
+
+2. Creating a chirp from that user:
+   ```bash
+   curl -X POST http://localhost:8080/api/chirps \
+     -H "Content-Type: application/json" \
+     -d '{"body": "I'm gonna be a damn good developer, and people are gonna know about it.", "user_id": "4d0e0ab7-ca28-4626-acbf-73115900e8fd"}'
+   ```
+
+3. Retrieving the chirp by its ID:
+   ```bash
+   curl -X GET "http://localhost:8080/api/chirps/91c19d70-286e-4924-b399-da1dd0fb5596"
+   ```
+
+### Response Format
+For a successful request, the endpoint returns a JSON object with the following structure:
+```json
+{
+  "id": "91c19d70-286e-4924-b399-da1dd0fb5596",
+  "created_at": "2025-04-30T19:11:54.202171Z",
+  "updated_at": "2025-04-30T19:11:54.202171Z",
+  "body": "I'm gonna be a damn good developer, and people are gonna know about it.",
+  "user_id": "4d0e0ab7-ca28-4626-acbf-73115900e8fd"
+}
+```
+
+### What I Learned
+1. **Path Parameters in Go 1.22+**: Using the new `r.PathValue()` method to extract path parameters cleanly
+2. **UUID Handling**: Converting string IDs to UUIDs using the `uuid.Parse()` function
+3. **HTTP Status Codes**: Using appropriate status codes for different scenarios:
+   - 200 OK for successful responses
+   - 400 Bad Request for client errors (invalid ID format)
+   - 404 Not Found for resources that don't exist
+   - 500 Internal Server Error for server-side errors
+4. **Error Handling**: Distinguishing between different types of errors (e.g., `sql.ErrNoRows` vs. other errors)
+5. **JSON Response Formatting**: Building structured JSON responses for RESTful APIs
+
+### Next Steps
+This endpoint provides the foundation for several future features:
+- Direct links to individual chirps
+- Chirp details pages in the frontend
+- Chirp sharing functionality
+- Comment systems that reference specific chirps
+
+### Tech Stack
+- Go 1.23.2 with net/http package
+- PostgreSQL database
+- SQLC for type-safe database queries
+- UUID for unique identifiers 
