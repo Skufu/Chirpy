@@ -870,3 +870,80 @@ This implementation provides the foundation for several future security features
 4. Two-factor authentication options
 
 These changes will allow Chirpy to implement proper user authentication in future updates. 
+
+## JWT Implementation for Authentication
+**Date: June 20, 2023, 9:21 PM**
+
+### Overview
+Added JSON Web Token (JWT) functionality to the auth package to support secure user authentication. Implemented token creation and validation functions as a foundation for the upcoming user authentication system.
+
+### JWT Implementation Details
+
+1. Added two main functions to the `internal/auth` package:
+
+   - `MakeJWT`: Creates and signs a JWT token for a user
+     ```go
+     func MakeJWT(userID uuid.UUID, tokenSecret string, expiresIn time.Duration) (string, error)
+     ```
+
+   - `ValidateJWT`: Validates a JWT token and extracts the user ID
+     ```go
+     func ValidateJWT(tokenString, tokenSecret string) (uuid.UUID, error)
+     ```
+
+2. JWT security features implemented:
+   - Tokens signed using HMAC-SHA256 (HS256) algorithm
+   - Token issuer set to "chirpy"
+   - Token expiration based on configurable duration
+   - Issued time recorded in UTC format
+   - User ID stored securely in the Subject claim
+
+3. Added comprehensive test suite in `jwt_test.go`:
+   - Test for successful token creation and validation
+   - Test for proper rejection of expired tokens
+   - Test for proper rejection of tokens signed with wrong secret
+   - Test for proper rejection of malformed tokens
+
+### Dependencies Added
+- `github.com/golang-jwt/jwt/v5` - Modern Go JWT library that provides:
+  - Support for standard JWT claims
+  - Flexible signing methods
+  - Built-in token validation
+
+### Security Considerations
+1. **Token Security**:
+   - Using symmetric HMAC-SHA256 signing for token integrity
+   - Including expiration time to limit token lifetime
+   - Validating signing method during verification to prevent algorithm switching attacks
+   - Proper error handling to avoid security leaks
+
+2. **Best Practices**:
+   - Storing minimal data in token claims (just the user ID)
+   - Using standard JWT claims format for compatibility
+   - Token signing with a configurable secret key
+   - Proper validation of all token components
+
+### What I Learned
+1. **JWT Structure and Security**:
+   - The three-part structure of JWTs (header, payload, signature)
+   - Best practices for JWT claim selection and validation
+   - How signing protects token integrity
+
+2. **Go JWT Implementation**:
+   - Using the golang-jwt library effectively
+   - Proper error handling during token validation
+   - Testing JWT functionality thoroughly
+
+3. **Authentication Architecture**:
+   - How JWTs fit into the overall authentication flow
+   - Planning for token refresh and revocation
+   - Keeping token implementation modular and testable
+
+### Next Steps
+The JWT implementation provides the foundation for several authentication features:
+1. Implementing a token-based authentication system
+2. Adding protected routes that require valid JWTs
+3. Implementing token refresh functionality
+4. Potentially adding support for different token types (access/refresh)
+
+This implementation prepares Chirpy for a complete authentication system in upcoming updates. 
