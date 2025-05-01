@@ -1,8 +1,36 @@
 # Chirpy API Documentation
 
-**Date: April 22, 2024**
+> **Navigation Tip**: Use your browser's search (Ctrl+F or Cmd+F) to quickly find topics by keyword.
 
+## Metadata
+- **Last Updated**: June 20, 2023
+- **Latest Entry**: [JWT Implementation for Authentication](#jwt-implementation-for-authentication)
+- **Total Entries**: 9
+- **Key Features**: [Authentication](#user-authentication-implementation), [Password Hashing](#password-hashing-implementation), [JWT](#jwt-implementation-for-authentication)
+
+## Table of Contents
+- [Validate Chirp Endpoint](#validate-chirp-endpoint)
+- [Profanity Filter](#profanity-filter)
+- [Database Setup and User Management](#database-setup-and-user-management)
+- [Database Connection Fix](#database-connection-fix)
+- [Added Chirps Database and API](#added-chirps-database-and-api)
+- [Single Chirp Retrieval Endpoint](#single-chirp-retrieval-endpoint)
+- [Password Hashing Implementation](#password-hashing-implementation)
+- [User Authentication Implementation](#user-authentication-implementation)
+- [JWT Implementation for Authentication](#jwt-implementation-for-authentication)
+
+## Chronological Index
+- **April 22, 2024**: [Validate Chirp Endpoint](#validate-chirp-endpoint), [Profanity Filter](#profanity-filter), [Database Setup and User Management](#database-setup-and-user-management)
+- **April 23, 2024**: [Database Connection Fix](#database-connection-fix)
+- **May 2, 2024**: [Added Chirps Database and API](#added-chirps-database-and-api)
+- **April 30, 2025**: [Single Chirp Retrieval Endpoint](#single-chirp-retrieval-endpoint), [Password Hashing Implementation](#password-hashing-implementation), [User Authentication Implementation](#user-authentication-implementation)
+- **June 20, 2023**: [JWT Implementation for Authentication](#jwt-implementation-for-authentication)
+
+---
+
+<a id="validate-chirp-endpoint"></a>
 ## Validate Chirp Endpoint
+**Date: April 22, 2024**
 
 ### Overview
 We implemented a new endpoint that validates whether a chirp meets the Chirpy platform requirements (specifically that it's 140 characters or less).
@@ -68,9 +96,12 @@ We implemented a new endpoint that validates whether a chirp meets the Chirpy pl
 
 4. **Error handling**: It's important to log errors for debugging purposes before sending error responses.
 
+[Back to Table of Contents](#table-of-contents)
+
 ---
 
-## Update: Profanity Filter
+<a id="profanity-filter"></a>
+## Profanity Filter
 **Date: April 22, 2024, 12:12 PM**
 
 ### Overview
@@ -126,8 +157,11 @@ Added profanity filtering to the `/api/validate_chirp` endpoint to replace inapp
 2. **Case insensitivity**: Using `strings.ToLower()` for case-insensitive comparison
 3. **Modular code design**: Breaking functionality into separate functions for better testing and maintenance 
 
+[Back to Table of Contents](#table-of-contents)
+
 ---
 
+<a id="database-setup-and-user-management"></a>
 ## Database Setup and User Management
 **Date: April 22, 2024, 8:18 PM**
 
@@ -215,6 +249,11 @@ Implemented database connectivity using PostgreSQL and migrations with Goose. Cr
 4. **PostgreSQL Features**: Using UUIDs and timestamps effectively
 5. **Go SQL Interface**: Working with database/sql package and drivers 
 
+[Back to Table of Contents](#table-of-contents)
+
+---
+
+<a id="database-connection-fix"></a>
 ## Database Connection Fix
 **Date: April 23, 2024, 9:33 PM**
 
@@ -270,6 +309,11 @@ Fixed issues with the database connection and reset endpoint functionality.
 3. **JSON Response Consistency**: Using helper functions like `respondWithJSON` to ensure consistent API responses
 4. **Environment Configuration**: The importance of environment-specific configuration for local development 
 
+[Back to Table of Contents](#table-of-contents)
+
+---
+
+<a id="added-chirps-database-and-api"></a>
 ## Added Chirps Database and API
 **Date: May 2, 2024, 3:45 PM**
 
@@ -466,6 +510,11 @@ Implemented the chirps table in the database and created API endpoints to save c
 4. **UUID Parsing**: Converting string UUIDs to the UUID type using the uuid.Parse function
 5. **Profanity Filtering**: Implementing content moderation before storing user-generated content 
 
+[Back to Table of Contents](#table-of-contents)
+
+---
+
+<a id="single-chirp-retrieval-endpoint"></a>
 ## Single Chirp Retrieval Endpoint
 **Date: April 30, 2025, 7:18 PM**
 
@@ -620,12 +669,28 @@ This endpoint provides the foundation for several future features:
 - SQLC for type-safe database queries
 - UUID for unique identifiers 
 
+[Back to Table of Contents](#table-of-contents)
+
+---
+
+<a id="password-hashing-implementation"></a>
 ## Password Hashing Implementation
 **Date: April 30, 2025, 7:39 PM**
 
+**Section Index:**
+- [Overview](#password-overview)
+- [Database Changes](#password-database)
+- [Auth Package Implementation](#password-auth-package)
+- [Dependencies](#password-dependencies)
+- [Security Considerations](#password-security)
+- [What I Learned](#password-learned)
+- [Next Steps](#password-next-steps)
+
+<a id="password-overview"></a>
 ### Overview
 Added password hashing capabilities to the Chirpy application by implementing a database migration to add a `hashed_password` column to the users table and creating a new `auth` package for securely handling passwords.
 
+<a id="password-database"></a>
 ### Database Changes
 1. Created a new migration file `003_users_add_password.sql` to add the `hashed_password` column to the users table:
    ```sql
@@ -645,6 +710,7 @@ Added password hashing capabilities to the Chirpy application by implementing a 
    psql "postgres://user:password@localhost:5432/chirpy?sslmode=disable" -c "ALTER TABLE users ADD COLUMN hashed_password TEXT NOT NULL DEFAULT 'unset';"
    ```
 
+<a id="password-auth-package"></a>
 ### Auth Package Implementation
 1. Created a new `internal/auth` package with password hashing functionality:
    ```go
@@ -678,12 +744,14 @@ Added password hashing capabilities to the Chirpy application by implementing a 
    - `TestHashPassword`: Ensures hashing produces non-empty results that differ from the input
    - `TestCheckPasswordHash`: Verifies that correct passwords validate and incorrect ones fail
 
+<a id="password-dependencies"></a>
 ### Dependencies Added
 - `golang.org/x/crypto/bcrypt` - Industry-standard password hashing library that includes:
   - Salt generation to prevent rainbow table attacks
   - Work factor adjustments to resist brute force attacks
   - Secure comparison to prevent timing attacks
 
+<a id="password-security"></a>
 ### Security Considerations
 1. **Password Storage**: We're following security best practices by:
    - Never storing passwords in plain text
@@ -694,6 +762,7 @@ Added password hashing capabilities to the Chirpy application by implementing a 
    - Existing users can be identified as needing to set a password
    - The application can check for this value and prompt users to update their passwords
 
+<a id="password-learned"></a>
 ### What I Learned
 1. **Secure Password Handling**: 
    - The importance of using specialized algorithms like bcrypt for password storage
@@ -711,6 +780,7 @@ Added password hashing capabilities to the Chirpy application by implementing a 
    - Creating a separate `auth` package to isolate security-related functionality
    - Writing comprehensive tests for security-critical code
 
+<a id="password-next-steps"></a>
 ### Next Steps
 This implementation provides the foundation for several future security features:
 1. User registration with password protection
@@ -720,6 +790,11 @@ This implementation provides the foundation for several future security features
 
 These changes will allow Chirpy to implement proper user authentication in future updates. 
 
+[Back to Table of Contents](#table-of-contents)
+
+---
+
+<a id="user-authentication-implementation"></a>
 ## User Authentication Implementation
 **Date: April 30, 2025, 8:08 PM**
 
@@ -871,12 +946,27 @@ This implementation provides the foundation for several future security features
 
 These changes will allow Chirpy to implement proper user authentication in future updates. 
 
+[Back to Table of Contents](#table-of-contents)
+
+---
+
+<a id="jwt-implementation-for-authentication"></a>
 ## JWT Implementation for Authentication
 **Date: June 20, 2023, 9:21 PM**
 
+**Section Index:**
+- [Overview](#jwt-overview)
+- [Implementation Details](#jwt-implementation-details)
+- [Dependencies](#jwt-dependencies)
+- [Security Considerations](#jwt-security)
+- [What I Learned](#jwt-learned)
+- [Next Steps](#jwt-next-steps)
+
+<a id="jwt-overview"></a>
 ### Overview
 Added JSON Web Token (JWT) functionality to the auth package to support secure user authentication. Implemented token creation and validation functions as a foundation for the upcoming user authentication system.
 
+<a id="jwt-implementation-details"></a>
 ### JWT Implementation Details
 
 1. Added two main functions to the `internal/auth` package:
@@ -904,12 +994,14 @@ Added JSON Web Token (JWT) functionality to the auth package to support secure u
    - Test for proper rejection of tokens signed with wrong secret
    - Test for proper rejection of malformed tokens
 
+<a id="jwt-dependencies"></a>
 ### Dependencies Added
 - `github.com/golang-jwt/jwt/v5` - Modern Go JWT library that provides:
   - Support for standard JWT claims
   - Flexible signing methods
   - Built-in token validation
 
+<a id="jwt-security"></a>
 ### Security Considerations
 1. **Token Security**:
    - Using symmetric HMAC-SHA256 signing for token integrity
@@ -923,6 +1015,7 @@ Added JSON Web Token (JWT) functionality to the auth package to support secure u
    - Token signing with a configurable secret key
    - Proper validation of all token components
 
+<a id="jwt-learned"></a>
 ### What I Learned
 1. **JWT Structure and Security**:
    - The three-part structure of JWTs (header, payload, signature)
@@ -939,6 +1032,7 @@ Added JSON Web Token (JWT) functionality to the auth package to support secure u
    - Planning for token refresh and revocation
    - Keeping token implementation modular and testable
 
+<a id="jwt-next-steps"></a>
 ### Next Steps
 The JWT implementation provides the foundation for several authentication features:
 1. Implementing a token-based authentication system
@@ -946,4 +1040,6 @@ The JWT implementation provides the foundation for several authentication featur
 3. Implementing token refresh functionality
 4. Potentially adding support for different token types (access/refresh)
 
-This implementation prepares Chirpy for a complete authentication system in upcoming updates. 
+This implementation prepares Chirpy for a complete authentication system in upcoming updates.
+
+[Back to Table of Contents](#table-of-contents)
