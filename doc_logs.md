@@ -4,9 +4,9 @@
 
 ## Metadata
 - **Last Updated**: May 1, 2025
-- **Latest Entry**: [JWT Implementation for Authentication](#jwt-implementation-for-authentication)
-- **Total Entries**: 9
-- **Key Features**: [Authentication](#user-authentication-implementation), [Password Hashing](#password-hashing-implementation), [JWT](#jwt-implementation-for-authentication)
+- **Latest Entry**: [JWT Authentication Implementation](#jwt-authentication-implementation)
+- **Total Entries**: 10
+- **Key Features**: [Authentication](#user-authentication-implementation), [Password Hashing](#password-hashing-implementation), [JWT](#jwt-implementation-for-authentication), [JWT Authentication](#jwt-authentication-implementation)
 
 ## Table of Contents
 - [Validate Chirp Endpoint](#validate-chirp-endpoint)
@@ -18,13 +18,14 @@
 - [Password Hashing Implementation](#password-hashing-implementation)
 - [User Authentication Implementation](#user-authentication-implementation)
 - [JWT Implementation for Authentication](#jwt-implementation-for-authentication)
+- [JWT Authentication Implementation](#jwt-authentication-implementation)
 
 ## Chronological Index
 - **April 22, 2024**: [Validate Chirp Endpoint](#validate-chirp-endpoint), [Profanity Filter](#profanity-filter), [Database Setup and User Management](#database-setup-and-user-management)
 - **April 23, 2024**: [Database Connection Fix](#database-connection-fix)
 - **May 2, 2024**: [Added Chirps Database and API](#added-chirps-database-and-api)
 - **April 30, 2025**: [Single Chirp Retrieval Endpoint](#single-chirp-retrieval-endpoint), [Password Hashing Implementation](#password-hashing-implementation), [User Authentication Implementation](#user-authentication-implementation)
-- **May 1, 2025**: [JWT Implementation for Authentication](#jwt-implementation-for-authentication)
+- **May 1, 2025**: [JWT Implementation for Authentication](#jwt-implementation-for-authentication), [JWT Authentication Implementation](#jwt-authentication-implementation)
 
 ---
 
@@ -1041,5 +1042,110 @@ The JWT implementation provides the foundation for several authentication featur
 4. Potentially adding support for different token types (access/refresh)
 
 This implementation prepares Chirpy for a complete authentication system in upcoming updates.
+
+[Back to Table of Contents](#table-of-contents)
+
+---
+
+<a id="jwt-authentication-implementation"></a>
+## JWT Authentication Implementation
+**Date: May 1, 2025, 9:55 PM**
+
+**Section Index:**
+- [Overview](#jwt-auth-overview)
+- [Implementation Details](#jwt-auth-implementation-details)
+- [Security Considerations](#jwt-auth-security)
+- [What I Learned](#jwt-auth-learned)
+- [Next Steps](#jwt-auth-next-steps)
+
+<a id="jwt-auth-overview"></a>
+### Overview
+Implemented JWT-based authentication for the Chirpy API by adding token extraction, validation, and using the authenticated user information for protected endpoints. This enables secure, stateless authentication for the API without requiring session storage.
+
+<a id="jwt-auth-implementation-details"></a>
+### Implementation Details
+
+1. **Token Extraction Function**:
+   - Added `GetBearerToken` function to extract JWT from Authorization headers:
+     ```go
+     func GetBearerToken(headers http.Header) (string, error)
+     ```
+   - Implemented proper validation of the Authorization header format
+   - Added comprehensive unit tests to verify behavior with various header formats
+
+2. **Environment Configuration**:
+   - Added JWT secret storage in .env file for secure token signing
+   - Updated apiConfig struct to include jwtSecret field
+   - Added validation to ensure JWT_SECRET is provided at application startup
+
+3. **Enhanced Login Endpoint**:
+   - Updated login endpoint to accept optional token expiration parameter:
+     ```json
+     {
+       "email": "user@example.com",
+       "password": "secure-password",
+       "expires_in_seconds": 1800
+     }
+     ```
+   - Implemented expiration time logic:
+     - Default: 1 hour if not specified by client
+     - Client-specified value used if less than 1 hour
+     - Maximum cap of 1 hour for longer requested durations
+   - Updated response format to include the JWT token:
+     ```json
+     {
+       "id": "5a47789c-a617-444a-8a80-b50359247804",
+       "email": "user@example.com",
+       "created_at": "2021-07-01T00:00:00Z",
+       "updated_at": "2021-07-01T00:00:00Z",
+       "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+     }
+     ```
+
+4. **Protected Endpoints**:
+   - Updated chirp creation endpoint to require valid JWT authentication
+   - Removed user_id from request body as it's now extracted from the token
+   - Implemented proper error handling for authentication failures
+   - Added 401 Unauthorized responses for invalid or missing tokens
+
+<a id="jwt-auth-security"></a>
+### Security Considerations
+1. **Token Handling**:
+   - Tokens contain minimal user information (only the user ID)
+   - Proper validation of all token components before accepting
+   - Expiration time enforced to limit token lifetime
+   - Secret key stored securely in environment variables, not code
+
+2. **Authentication Flow**:
+   - Clean separation of token creation (login) and token validation (protected endpoints)
+   - Consistent error messaging that doesn't leak security information
+   - Proper HTTP status codes (401 for auth failures)
+
+<a id="jwt-auth-learned"></a>
+### What I Learned
+1. **JWT Security Best Practices**:
+   - How to securely implement token-based authentication
+   - Proper methods for extracting and validating tokens
+   - The importance of token expiration and renewal strategies
+
+2. **Go HTTP Authentication**:
+   - Working with HTTP headers in Go
+   - Implementing middleware-like functionality for authentication
+   - Proper error handling for auth failures
+
+3. **API Security Design**:
+   - Designing endpoints with proper authentication requirements
+   - Using token data to enforce user-specific actions
+   - Balancing security with usability in API design
+
+<a id="jwt-auth-next-steps"></a>
+### Next Steps
+The JWT authentication implementation provides the foundation for several upcoming features:
+1. Implementing refresh tokens for longer sessions
+2. Adding more protected endpoints with user-specific data
+3. Implementing role-based access control for admin functions
+4. Adding token revocation capability for logout functionality
+
+These changes complete the authentication system for the Chirpy API, allowing secure user-specific actions while maintaining stateless operation.
 
 [Back to Table of Contents](#table-of-contents)

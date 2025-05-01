@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/Skufu/HTTPS-Bootdev/Chirpy/internal/auth"
 )
@@ -18,8 +19,9 @@ func (cfg *apiConfig) handlerLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type requestBody struct {
-		Email    string `json:"email"`
-		Password string `json:"password"`
+		Email            string `json:"email"`
+		Password         string `json:"password"`
+		ExpiresInSeconds int    `json:"expires_in_seconds,omitempty"`
 	}
 
 	// Parse the request body
@@ -61,11 +63,45 @@ func (cfg *apiConfig) handlerLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Login successful - return user without the password
-	respondWithJSON(w, http.StatusOK, UserResponse{
-		ID:        user.ID,
+	// Determine token expiration time
+	// Default is 1 hour (3600 seconds)
+	expiresIn := time.Hour
+
+	// If the client specified an expiration time
+	if reqBody.ExpiresInSeconds > 0 {
+		// Use client's expiration time, but cap at 1 hour
+		requestedExpiration := time.Duration(reqBody.ExpiresInSeconds) * time.Second
+		if requestedExpiration > time.Hour {
+			// Cap at 1 hour
+			expiresIn = time.Hour
+		} else {
+			expiresIn = requestedExpiration
+		}
+	}
+
+	// Create JWT token
+	token, err := auth.MakeJWT(user.ID, cfg.jwtSecret, expiresIn)
+	if err != nil {
+		log.Printf("Error creating JWT: %v", err)
+		respondWithError(w, http.StatusInternalServerError, "Error during login")
+		return
+	}
+
+	// Define response type with token
+	type loginResponse struct {
+		ID        string    `json:"id"`
+		Email     string    `json:"email"`
+		CreatedAt time.Time `json:"created_at"`
+		UpdatedAt time.Time `json:"updated_at"`
+		Token     string    `json:"token"`
+	}
+
+	// Login successful - return user with token
+	respondWithJSON(w, http.StatusOK, loginResponse{
+		ID:        user.ID.String(),
 		Email:     user.Email,
 		CreatedAt: user.CreatedAt,
 		UpdatedAt: user.UpdatedAt,
+		Token:     token,
 	})
 }

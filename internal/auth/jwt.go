@@ -2,11 +2,37 @@ package auth
 
 import (
 	"fmt"
+	"net/http"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 )
+
+// GetBearerToken extracts the token from the Authorization header
+func GetBearerToken(headers http.Header) (string, error) {
+	// Get the Authorization header
+	authHeader := headers.Get("Authorization")
+	if authHeader == "" {
+		return "", fmt.Errorf("no Authorization header found")
+	}
+
+	// Check if it starts with "Bearer "
+	if !strings.HasPrefix(authHeader, "Bearer ") {
+		return "", fmt.Errorf("invalid Authorization header format")
+	}
+
+	// Extract the token (remove "Bearer " prefix and trim spaces)
+	token := strings.TrimPrefix(authHeader, "Bearer ")
+	token = strings.TrimSpace(token)
+
+	if token == "" {
+		return "", fmt.Errorf("empty token in Authorization header")
+	}
+
+	return token, nil
+}
 
 // MakeJWT creates a JWT token for the given user ID
 func MakeJWT(userID uuid.UUID, tokenSecret string, expiresIn time.Duration) (string, error) {

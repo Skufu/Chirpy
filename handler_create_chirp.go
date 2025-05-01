@@ -8,13 +8,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Skufu/HTTPS-Bootdev/Chirpy/internal/auth"
 	"github.com/Skufu/HTTPS-Bootdev/Chirpy/internal/database"
-	"github.com/google/uuid"
 )
 
-type parameters struct {
-	Body   string `json:"body"`
-	UserID string `json:"user_id"`
+type createChirpRequest struct {
+	Body string `json:"body"`
 }
 
 type chirpResponse struct {
@@ -52,15 +51,33 @@ func cleanChirp(body string) string {
 }
 
 func (cfg *apiConfig) handlerCreateChirp(w http.ResponseWriter, r *http.Request) {
-	decoder := json.NewDecoder(r.Body)
-	params := parameters{}
-	err := decoder.Decode(&params)
+	// Authenticate the request using JWT
+	bearerToken, err := auth.GetBearerToken(r.Header)
 	if err != nil {
-		log.Printf("Error decoding parameters: %s", err)
-		respondWithError(w, http.StatusInternalServerError, "Something went wrong")
+		log.Printf("Authentication error: %v", err)
+		respondWithError(w, http.StatusUnauthorized, "Authentication required")
 		return
 	}
 
+	// Validate the JWT and extract user ID
+	userID, err := auth.ValidateJWT(bearerToken, cfg.jwtSecret)
+	if err != nil {
+		log.Printf("Invalid JWT: %v", err)
+		respondWithError(w, http.StatusUnauthorized, "Invalid authentication token")
+		return
+	}
+
+	// Parse request body
+	decoder := json.NewDecoder(r.Body)
+	params := createChirpRequest{}
+	err = decoder.Decode(&params)
+	if err != nil {
+		log.Printf("Error decoding parameters: %s", err)
+		respondWithError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	// Validate chirp length
 	const maxChirpLength = 140
 	if len(params.Body) > maxChirpLength {
 		respondWithError(w, http.StatusBadRequest, "Chirp is too long")
@@ -70,14 +87,7 @@ func (cfg *apiConfig) handlerCreateChirp(w http.ResponseWriter, r *http.Request)
 	// Clean the chirp body by replacing profane words
 	cleanedBody := cleanChirp(params.Body)
 
-	// Convert user_id string to UUID
-	userID, err := uuid.Parse(params.UserID)
-	if err != nil {
-		respondWithError(w, http.StatusBadRequest, "Invalid user ID")
-		return
-	}
-
-	// Save the chirp to the database
+	// Save the chirp to the database using the user ID from the JWT
 	chirp, err := cfg.db.CreateChirp(context.Background(), database.CreateChirpParams{
 		Body:   cleanedBody,
 		UserID: userID,

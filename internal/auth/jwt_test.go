@@ -1,11 +1,83 @@
 package auth
 
 import (
+	"net/http"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 )
+
+func TestGetBearerToken(t *testing.T) {
+	tests := []struct {
+		name          string
+		headers       http.Header
+		expectedToken string
+		expectError   bool
+	}{
+		{
+			name: "Valid Bearer Token",
+			headers: http.Header{
+				"Authorization": []string{"Bearer abc123.def456.ghi789"},
+			},
+			expectedToken: "abc123.def456.ghi789",
+			expectError:   false,
+		},
+		{
+			name: "Missing Authorization Header",
+			headers: http.Header{
+				"Content-Type": []string{"application/json"},
+			},
+			expectedToken: "",
+			expectError:   true,
+		},
+		{
+			name: "Invalid Authorization Format",
+			headers: http.Header{
+				"Authorization": []string{"Basic dXNlcjpwYXNz"},
+			},
+			expectedToken: "",
+			expectError:   true,
+		},
+		{
+			name: "Empty Token",
+			headers: http.Header{
+				"Authorization": []string{"Bearer "},
+			},
+			expectedToken: "",
+			expectError:   true,
+		},
+		{
+			name: "Token with Extra Spaces",
+			headers: http.Header{
+				"Authorization": []string{"Bearer  token123  "},
+			},
+			expectedToken: "token123",
+			expectError:   false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			token, err := GetBearerToken(tc.headers)
+
+			// Check error expectation
+			if tc.expectError && err == nil {
+				t.Fatalf("Expected error but got none")
+			}
+			if !tc.expectError && err != nil {
+				t.Fatalf("Did not expect error but got: %v", err)
+			}
+
+			// If we don't expect an error, check the token
+			if !tc.expectError {
+				if token != tc.expectedToken {
+					t.Fatalf("Expected token %q but got %q", tc.expectedToken, token)
+				}
+			}
+		})
+	}
+}
 
 func TestMakeAndValidateJWT(t *testing.T) {
 	// Create a sample user ID
