@@ -3,7 +3,7 @@
 > **Navigation Tip**: Use your browser's search (Ctrl+F or Cmd+F) to quickly find topics by keyword.
 
 ## Metadata
-- **Last Updated**: June 20, 2023
+- **Last Updated**: May 1, 2025
 - **Latest Entry**: [JWT Implementation for Authentication](#jwt-implementation-for-authentication)
 - **Total Entries**: 9
 - **Key Features**: [Authentication](#user-authentication-implementation), [Password Hashing](#password-hashing-implementation), [JWT](#jwt-implementation-for-authentication)
@@ -24,7 +24,7 @@
 - **April 23, 2024**: [Database Connection Fix](#database-connection-fix)
 - **May 2, 2024**: [Added Chirps Database and API](#added-chirps-database-and-api)
 - **April 30, 2025**: [Single Chirp Retrieval Endpoint](#single-chirp-retrieval-endpoint), [Password Hashing Implementation](#password-hashing-implementation), [User Authentication Implementation](#user-authentication-implementation)
-- **June 20, 2023**: [JWT Implementation for Authentication](#jwt-implementation-for-authentication)
+- **May 1, 2025**: [JWT Implementation for Authentication](#jwt-implementation-for-authentication)
 
 ---
 
@@ -952,7 +952,7 @@ These changes will allow Chirpy to implement proper user authentication in futur
 
 <a id="jwt-implementation-for-authentication"></a>
 ## JWT Implementation for Authentication
-**Date: June 20, 2023, 9:21 PM**
+**Date: May 1, 2025, 9:21 PM**
 
 **Section Index:**
 - [Overview](#jwt-overview)
