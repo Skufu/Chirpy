@@ -53,11 +53,14 @@ func (cfg *apiConfig) handlerReset(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+
+	// Load ENV
 	err := godotenv.Load()
 	if err != nil {
 		log.Fatal("Error loading .env file")
 	}
 
+	//Connect to Database
 	dbURL := os.Getenv("DB_URL")
 	db, err := sql.Open("postgres", dbURL)
 	if err != nil {
@@ -99,8 +102,23 @@ func main() {
 		log.Fatalf("Failed to create chirps table: %v", err)
 	}
 
+	_, err = db.ExecContext(ctx, `
+	CREATE TABLE IF NOT EXISTS refresh_tokens (
+		token text PRIMARY KEY,
+		created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+		updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+		user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		expires_at TIMESTAMP NOT NULL,
+		revoked_at TIMESTAMP
+	)`)
+	if err != nil {
+		log.Fatalf("Failed to create refresh_tokens table: %v", err)
+	}
+
+	// Create database queries
 	dbQueries := database.New(db)
 
+	// Get port from environment variables
 	const port = "8080"
 	const filePathRoot = "."
 
@@ -130,6 +148,8 @@ func main() {
 	mux.HandleFunc("POST /admin/reset", apiCfg.handlerReset)
 	mux.HandleFunc("POST /api/users", apiCfg.handlerCreateUser)
 	mux.HandleFunc("POST /api/login", apiCfg.handlerLogin)
+	mux.HandleFunc("POST /api/refresh", apiCfg.handlerRefresh)
+	mux.HandleFunc("POST /api/revoke", apiCfg.handlerRevokeToken)
 	mux.HandleFunc("POST /api/chirps", apiCfg.handlerCreateChirp)
 	mux.HandleFunc("GET /api/chirps", apiCfg.handlerListChirps)
 	mux.HandleFunc("GET /api/chirps/{chirpID}", apiCfg.handlerGetChirp)

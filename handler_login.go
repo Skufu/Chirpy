@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/Skufu/HTTPS-Bootdev/Chirpy/internal/auth"
+	"github.com/Skufu/HTTPS-Bootdev/Chirpy/internal/database"
 )
 
 func (cfg *apiConfig) handlerLogin(w http.ResponseWriter, r *http.Request) {
@@ -19,9 +20,8 @@ func (cfg *apiConfig) handlerLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type requestBody struct {
-		Email            string `json:"email"`
-		Password         string `json:"password"`
-		ExpiresInSeconds int    `json:"expires_in_seconds,omitempty"`
+		Email    string `json:"email"`
+		Password string `json:"password"`
 	}
 
 	// Parse the request body
@@ -63,45 +63,51 @@ func (cfg *apiConfig) handlerLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Determine token expiration time
-	// Default is 1 hour (3600 seconds)
-	expiresIn := time.Hour
-
-	// If the client specified an expiration time
-	if reqBody.ExpiresInSeconds > 0 {
-		// Use client's expiration time, but cap at 1 hour
-		requestedExpiration := time.Duration(reqBody.ExpiresInSeconds) * time.Second
-		if requestedExpiration > time.Hour {
-			// Cap at 1 hour
-			expiresIn = time.Hour
-		} else {
-			expiresIn = requestedExpiration
-		}
-	}
-
-	// Create JWT token
-	token, err := auth.MakeJWT(user.ID, cfg.jwtSecret, expiresIn)
+	// Access tokens expire after 1 hour
+	token, err := auth.MakeJWT(user.ID, cfg.jwtSecret, time.Hour)
 	if err != nil {
 		log.Printf("Error creating JWT: %v", err)
 		respondWithError(w, http.StatusInternalServerError, "Error during login")
 		return
 	}
 
-	// Define response type with token
-	type loginResponse struct {
-		ID        string    `json:"id"`
-		Email     string    `json:"email"`
-		CreatedAt time.Time `json:"created_at"`
-		UpdatedAt time.Time `json:"updated_at"`
-		Token     string    `json:"token"`
+	// Generate refresh token
+	refreshToken, err := auth.MakeRefreshToken()
+	if err != nil {
+		log.Printf("Error creating refresh token: %v", err)
+		respondWithError(w, http.StatusInternalServerError, "Error during login")
+		return
 	}
 
-	// Login successful - return user with token
+	// Store refresh token in database with 60 day expiration
+	_, err = cfg.db.CreateRefreshToken(context.Background(), database.CreateRefreshTokenParams{
+		Token:     refreshToken,
+		UserID:    user.ID,
+		ExpiresAt: time.Now().AddDate(0, 0, 60), // 60 days
+	})
+	if err != nil {
+		log.Printf("Error storing refresh token: %v", err)
+		respondWithError(w, http.StatusInternalServerError, "Error during login")
+		return
+	}
+
+	// Define response type with token and refresh token
+	type loginResponse struct {
+		ID           string    `json:"id"`
+		Email        string    `json:"email"`
+		CreatedAt    time.Time `json:"created_at"`
+		UpdatedAt    time.Time `json:"updated_at"`
+		Token        string    `json:"token"`
+		RefreshToken string    `json:"refresh_token"`
+	}
+
+	// Login successful - return user with tokens
 	respondWithJSON(w, http.StatusOK, loginResponse{
-		ID:        user.ID.String(),
-		Email:     user.Email,
-		CreatedAt: user.CreatedAt,
-		UpdatedAt: user.UpdatedAt,
-		Token:     token,
+		ID:           user.ID.String(),
+		Email:        user.Email,
+		CreatedAt:    user.CreatedAt,
+		UpdatedAt:    user.UpdatedAt,
+		Token:        token,
+		RefreshToken: refreshToken,
 	})
 }

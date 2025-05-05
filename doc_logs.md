@@ -19,6 +19,7 @@
 - [User Authentication Implementation](#user-authentication-implementation)
 - [JWT Implementation for Authentication](#jwt-implementation-for-authentication)
 - [JWT Authentication Implementation](#jwt-authentication-implementation)
+- [Refresh Token Implementation](#refresh-token-implementation)
 
 ## Chronological Index
 - **April 22, 2024**: [Validate Chirp Endpoint](#validate-chirp-endpoint), [Profanity Filter](#profanity-filter), [Database Setup and User Management](#database-setup-and-user-management)
@@ -26,6 +27,7 @@
 - **May 2, 2024**: [Added Chirps Database and API](#added-chirps-database-and-api)
 - **April 30, 2025**: [Single Chirp Retrieval Endpoint](#single-chirp-retrieval-endpoint), [Password Hashing Implementation](#password-hashing-implementation), [User Authentication Implementation](#user-authentication-implementation)
 - **May 1, 2025**: [JWT Implementation for Authentication](#jwt-implementation-for-authentication), [JWT Authentication Implementation](#jwt-authentication-implementation)
+- **May 5, 2025**: [Refresh Token Implementation](#refresh-token-implementation)
 
 ---
 
@@ -39,18 +41,21 @@ We implemented a new endpoint that validates whether a chirp meets the Chirpy pl
 ### Implementation Details
 - **Endpoint:** `POST /api/validate_chirp`
 - **Request Format:**
+  File: `(request format)`
   ```json
   {
     "body": "Text content of the chirp"
   }
   ```
 - **Success Response (200 OK):**
+  File: `(response format)`
   ```json
   {
     "valid": true
   }
   ```
 - **Error Response (400 Bad Request):**
+  File: `(response format)`
   ```json
   {
     "error": "Chirp is too long"
@@ -59,6 +64,7 @@ We implemented a new endpoint that validates whether a chirp meets the Chirpy pl
 
 ### Technical Implementation
 1. The endpoint is registered in `main.go` using Go 1.22+ pattern style:
+   File: `main.go`
    ```go
    mux.HandleFunc("POST /api/validate_chirp", apiCfg.handlerValidateChirp)
    ```
@@ -70,6 +76,7 @@ We implemented a new endpoint that validates whether a chirp meets the Chirpy pl
 
 ### What I Learned
 1. **Go 1.22+ HTTP router patterns**: The new pattern style in Go 1.22+ allows specifying HTTP methods directly in the pattern string.
+   File: `(example code, likely main.go or handler files)`
    ```go
    // Old style (pre-Go 1.22)
    mux.HandleFunc("/api/endpoint", func(w http.ResponseWriter, r *http.Request) {
@@ -85,6 +92,7 @@ We implemented a new endpoint that validates whether a chirp meets the Chirpy pl
    ```
 
 2. **JSON response formatting**: Using `json.Marshal()` automatically handles proper formatting without newlines or extra spaces:
+   File: `(example code, likely validate_chirp.go)`
    ```go
    // Outputs: {"valid":true} without pretty formatting
    dat, _ := json.Marshal(validResponse{Valid: true})
@@ -111,6 +119,7 @@ Added profanity filtering to the `/api/validate_chirp` endpoint to replace inapp
 ### Changes Made
 1. Modified the endpoint response to return the cleaned chirp body instead of a validity boolean:
    - **New Response Format:**
+     File: `(response format)`
      ```json
      {
        "cleaned_body": "Filtered text content of the chirp"
@@ -130,6 +139,7 @@ Added profanity filtering to the `/api/validate_chirp` endpoint to replace inapp
 
 ### Implementation Details
 1. Created a helper function `cleanChirp()` to filter profane words:
+   File: `(example code, likely validate_chirp.go)`
    ```go
    func cleanChirp(body string) string {
      words := strings.Split(body, " ")
@@ -147,6 +157,7 @@ Added profanity filtering to the `/api/validate_chirp` endpoint to replace inapp
    ```
 
 2. Updated the handler response to use the new `cleanedResponse` type:
+   File: `(example code, likely validate_chirp.go)`
    ```go
    respondWithJSON(w, http.StatusOK, cleanedResponse{
      CleanedBody: cleanedBody,
@@ -171,6 +182,7 @@ Implemented database connectivity using PostgreSQL and migrations with Goose. Cr
 
 ### Database Schema
 1. Created the users table with the following schema:
+   File: `sql/schema/001_users.sql`
    ```sql
    CREATE TABLE users (
      id uuid PRIMARY KEY,
@@ -183,6 +195,7 @@ Implemented database connectivity using PostgreSQL and migrations with Goose. Cr
 ### Migration Setup
 1. Set up Goose migrations in `sql/schema` directory
 2. Created migration file `001_users.sql` with Up/Down migrations:
+   File: `sql/schema/001_users.sql`
    ```sql
    -- +goose Up
    CREATE TABLE users (...)
@@ -191,6 +204,7 @@ Implemented database connectivity using PostgreSQL and migrations with Goose. Cr
    DROP TABLE users;
    ```
 3. Migration commands:
+   File: `(terminal commands)`
    ```bash
    # Run migrations up
    goose postgres "postgres://user:pass@localhost:5432/chirpy?sslmode=disable" up
@@ -201,6 +215,7 @@ Implemented database connectivity using PostgreSQL and migrations with Goose. Cr
 
 ### Database Queries with SQLC
 1. Created type-safe queries in `sql/queries/users.sql`:
+   File: `sql/queries/users.sql`
    ```sql
    -- name: CreateUser :one
    INSERT INTO users (id, created_at, updated_at, email)
@@ -216,6 +231,7 @@ Implemented database connectivity using PostgreSQL and migrations with Goose. Cr
 
 ### API Configuration
 1. Set up database connection in `main.go`:
+   File: `main.go`
    ```go
    dbURL := os.Getenv("DB_URL")
    db, err := sql.Open("postgres", dbURL)
@@ -223,6 +239,7 @@ Implemented database connectivity using PostgreSQL and migrations with Goose. Cr
    dbQueries := database.New(db)
    ```
 2. Added database access to the API configuration:
+   File: `main.go`
    ```go
    apiCfg := apiConfig{
      fileserverHits: atomic.Int32{},
@@ -232,6 +249,7 @@ Implemented database connectivity using PostgreSQL and migrations with Goose. Cr
 
 ### Environment Setup
 1. Created `.env` file to store connection string securely:
+   File: `.env`
    ```
    DB_URL="postgres://user:pass@localhost:5432/chirpy?sslmode=disable"
    ```
@@ -267,11 +285,13 @@ Fixed issues with the database connection and reset endpoint functionality.
 
 ### Changes Made
 1. Updated the database connection string in `.env` file to use the local user instead of "postgres":
+   File: `.env`
    ```
    DB_URL="postgres://adriangabriellfrancisco:@localhost:5432/chirpy?sslmode=disable"
    ```
 
 2. Improved error handling in the reset endpoint:
+   File: `(example code, likely handler_reset.go)`
    ```go
    func (cfg *apiConfig) handlerReset(w http.ResponseWriter, r *http.Request) {
      // Check if in dev environment
@@ -298,6 +318,7 @@ Fixed issues with the database connection and reset endpoint functionality.
 
 3. Enhanced the reset response format to use consistent JSON:
    - **New Response Format:**
+     File: `(response format)`
      ```json
      {
        "status": "Reset successful"
@@ -323,6 +344,7 @@ Implemented the chirps table in the database and created API endpoints to save c
 
 ### Database Schema
 1. Created the chirps table with the following schema:
+   File: `sql/schema/002_chirps.sql`
    ```sql
    CREATE TABLE chirps (
        id uuid PRIMARY KEY,
@@ -336,6 +358,7 @@ Implemented the chirps table in the database and created API endpoints to save c
 
 ### Migration Setup
 1. Created migration file `002_chirps.sql` with Up/Down migrations:
+   File: `sql/schema/002_chirps.sql`
    ```sql
    -- +goose Up
    CREATE TABLE chirps (
@@ -353,6 +376,7 @@ Implemented the chirps table in the database and created API endpoints to save c
 
 ### Database Queries with SQLC
 1. Created type-safe queries in `sql/queries/chirps.sql`:
+   File: `sql/queries/chirps.sql`
    ```sql
    -- name: CreateChirp :one
    INSERT INTO chirps (id, created_at, updated_at, body, user_id)
@@ -368,6 +392,7 @@ Implemented the chirps table in the database and created API endpoints to save c
 
 ### Model and Database Implementations
 1. Added Chirp struct to `internal/database/models.go`:
+   File: `internal/database/models.go`
    ```go
    type Chirp struct {
        ID        uuid.UUID
@@ -379,6 +404,7 @@ Implemented the chirps table in the database and created API endpoints to save c
    ```
 
 2. Added CreateChirpParams struct for parameters:
+   File: `(example code, likely internal/database/models.go or internal/database/chirps.sql.go)`
    ```go
    type CreateChirpParams struct {
        Body   string
@@ -387,6 +413,7 @@ Implemented the chirps table in the database and created API endpoints to save c
    ```
 
 3. Implemented the CreateChirp function in `internal/database/chirps.sql.go`:
+   File: `internal/database/chirps.sql.go`
    ```go
    func (q *Queries) CreateChirp(ctx context.Context, params CreateChirpParams) (Chirp, error) {
        row := q.db.QueryRowContext(ctx, `
@@ -413,6 +440,7 @@ Implemented the chirps table in the database and created API endpoints to save c
    ```
 
 4. Added DeleteAllChirps function for reset functionality:
+   File: `internal/database/chirps.sql.go`
    ```go
    func (q *Queries) DeleteAllChirps(ctx context.Context) error {
        _, err := q.db.ExecContext(ctx, "DELETE FROM chirps")
@@ -422,6 +450,7 @@ Implemented the chirps table in the database and created API endpoints to save c
 
 ### API Endpoint Implementation
 1. Updated the handlerCreateChirp function to save chirps to the database:
+   File: `(example code, likely handler_create_chirp.go)`
    ```go
    func (cfg *apiConfig) handlerCreateChirp(w http.ResponseWriter, r *http.Request) {
        // Parse request parameters
@@ -471,6 +500,7 @@ Implemented the chirps table in the database and created API endpoints to save c
    ```
 
 2. Updated reset handler to delete chirps before users due to foreign key constraints:
+   File: `(example code, likely handler_reset.go)`
    ```go
    func (cfg *apiConfig) handlerReset(w http.ResponseWriter, r *http.Request) {
        // Check if in dev environment
@@ -527,6 +557,7 @@ Implemented a new endpoint that allows users to retrieve a single chirp by its u
 #### 1. Database Query
 First, I added a new SQL query in `sql/queries/chirps.sql` to fetch a single chirp by its ID:
 
+File: `sql/queries/chirps.sql`
 ```sql
 -- name: GetChirp :one
 SELECT * FROM chirps
@@ -538,6 +569,7 @@ This SQL query retrieves all columns from the `chirps` table where the ID matche
 #### 2. Code Generation
 I ran the `sqlc generate` command to create the Go implementation of this query. This automatically generated a `GetChirp` function in the `database` package that accepts a UUID and returns a single chirp:
 
+File: `internal/database/chirps.sql.go` (generated)
 ```go
 func (q *Queries) GetChirp(ctx context.Context, id uuid.UUID) (Chirp, error) {
     row := q.db.QueryRowContext(ctx, getChirp, id)
@@ -556,6 +588,7 @@ func (q *Queries) GetChirp(ctx context.Context, id uuid.UUID) (Chirp, error) {
 #### 3. Handler Implementation
 Created a new handler function `handlerGetChirp` in `handler_get_chirp.go`:
 
+File: `handler_get_chirp.go`
 ```go
 func (cfg *apiConfig) handlerGetChirp(w http.ResponseWriter, r *http.Request) {
     // Get chirp ID from path parameter
@@ -607,6 +640,7 @@ This handler:
 #### 4. Route Registration
 Added the new endpoint to `main.go` using Go 1.22+ pattern matching syntax:
 
+File: `main.go`
 ```go
 mux.HandleFunc("GET /api/chirps/{chirpID}", apiCfg.handlerGetChirp)
 ```
@@ -616,6 +650,7 @@ This registers the handler for GET requests to paths matching the pattern `/api/
 ### Testing
 Tested the endpoint by:
 1. Creating a user:
+   File: `(terminal command)`
    ```bash
    curl -X POST http://localhost:8080/api/users \
      -H "Content-Type: application/json" \
@@ -623,6 +658,7 @@ Tested the endpoint by:
    ```
 
 2. Creating a chirp from that user:
+   File: `(terminal command)`
    ```bash
    curl -X POST http://localhost:8080/api/chirps \
      -H "Content-Type: application/json" \
@@ -630,12 +666,14 @@ Tested the endpoint by:
    ```
 
 3. Retrieving the chirp by its ID:
+   File: `(terminal command)`
    ```bash
    curl -X GET "http://localhost:8080/api/chirps/91c19d70-286e-4924-b399-da1dd0fb5596"
    ```
 
 ### Response Format
 For a successful request, the endpoint returns a JSON object with the following structure:
+File: `(response format)`
 ```json
 {
   "id": "91c19d70-286e-4924-b399-da1dd0fb5596",
@@ -694,6 +732,7 @@ Added password hashing capabilities to the Chirpy application by implementing a 
 <a id="password-database"></a>
 ### Database Changes
 1. Created a new migration file `003_users_add_password.sql` to add the `hashed_password` column to the users table:
+   File: `sql/schema/003_users_add_password.sql`
    ```sql
    -- +goose Up
    ALTER TABLE users 
@@ -707,6 +746,7 @@ Added password hashing capabilities to the Chirpy application by implementing a 
 2. The migration adds a non-null TEXT column with a default value of 'unset', which ensures that existing users in the database don't cause constraint violations.
 
 3. Applied the migration using direct SQL since there were issues with the migration tool and the tables already existed:
+   File: `(terminal commands)`
    ```bash
    psql "postgres://user:password@localhost:5432/chirpy?sslmode=disable" -c "ALTER TABLE users ADD COLUMN hashed_password TEXT NOT NULL DEFAULT 'unset';"
    ```
@@ -714,6 +754,7 @@ Added password hashing capabilities to the Chirpy application by implementing a 
 <a id="password-auth-package"></a>
 ### Auth Package Implementation
 1. Created a new `internal/auth` package with password hashing functionality:
+   File: `internal/auth/password.go`
    ```go
    package auth
    
@@ -806,6 +847,7 @@ Enhanced the Chirpy API with user authentication capabilities by implementing pa
 
 #### Updated User Creation Endpoint
 1. Modified the `POST /api/users` endpoint to accept and hash passwords:
+   File: `(request/response formats)`
    ```json
    // Request
    {
@@ -829,6 +871,7 @@ Enhanced the Chirpy API with user authentication capabilities by implementing pa
 
 #### New Login Endpoint
 1. Added a new `POST /api/login` endpoint that validates user credentials:
+   File: `(request/response formats)`
    ```json
    // Request
    {
@@ -858,6 +901,7 @@ Enhanced the Chirpy API with user authentication capabilities by implementing pa
 
 ### Database Changes
 1. Added a `GetUserByEmail` query to support login functionality:
+   File: `sql/queries/users.sql`
    ```sql
    -- name: GetUserByEmail :one
    SELECT * FROM users
@@ -865,6 +909,7 @@ Enhanced the Chirpy API with user authentication capabilities by implementing pa
    ```
 
 2. Updated the `CreateUser` query to store the hashed password:
+   File: `sql/queries/users.sql`
    ```sql
    -- name: CreateUser :one
    INSERT INTO users (id, created_at, updated_at, email, hashed_password)
@@ -896,6 +941,7 @@ Enhanced the Chirpy API with user authentication capabilities by implementing pa
 
 ### Implementation Details
 1. Created a new `handlerLogin` function to handle login requests:
+   File: `(example code, likely handler_login.go)`
    ```go
    func (cfg *apiConfig) handlerLogin(w http.ResponseWriter, r *http.Request) {
        // Parse login credentials from request body
@@ -906,6 +952,7 @@ Enhanced the Chirpy API with user authentication capabilities by implementing pa
    ```
 
 2. Updated `handlerCreateUser` to handle password hashing:
+   File: `(example code, handler_create_user.go)`
    ```go
    // Hash the password
    hashedPassword, err := auth.HashPassword(reqBody.Password)
@@ -973,11 +1020,13 @@ Added JSON Web Token (JWT) functionality to the auth package to support secure u
 1. Added two main functions to the `internal/auth` package:
 
    - `MakeJWT`: Creates and signs a JWT token for a user
+     File: `internal/auth/jwt.go`
      ```go
      func MakeJWT(userID uuid.UUID, tokenSecret string, expiresIn time.Duration) (string, error)
      ```
 
    - `ValidateJWT`: Validates a JWT token and extracts the user ID
+     File: `internal/auth/jwt.go`
      ```go
      func ValidateJWT(tokenString, tokenSecret string) (uuid.UUID, error)
      ```
@@ -1067,6 +1116,7 @@ Implemented JWT-based authentication for the Chirpy API by adding token extracti
 
 1. **Token Extraction Function**:
    - Added `GetBearerToken` function to extract JWT from Authorization headers:
+     File: `internal/auth/jwt.go`
      ```go
      func GetBearerToken(headers http.Header) (string, error)
      ```
@@ -1080,6 +1130,7 @@ Implemented JWT-based authentication for the Chirpy API by adding token extracti
 
 3. **Enhanced Login Endpoint**:
    - Updated login endpoint to accept optional token expiration parameter:
+     File: `(request format)`
      ```json
      {
        "email": "user@example.com",
@@ -1092,6 +1143,7 @@ Implemented JWT-based authentication for the Chirpy API by adding token extracti
      - Client-specified value used if less than 1 hour
      - Maximum cap of 1 hour for longer requested durations
    - Updated response format to include the JWT token:
+     File: `(response format)`
      ```json
      {
        "id": "5a47789c-a617-444a-8a80-b50359247804",
@@ -1147,5 +1199,236 @@ The JWT authentication implementation provides the foundation for several upcomi
 4. Adding token revocation capability for logout functionality
 
 These changes complete the authentication system for the Chirpy API, allowing secure user-specific actions while maintaining stateless operation.
+
+[Back to Table of Contents](#table-of-contents)
+
+---
+
+<a id="refresh-token-implementation"></a>
+## Refresh Token Implementation
+**Date: May 5, 2025**
+
+### Overview
+Implemented a refresh token system that allows users to obtain new access tokens without re-authentication. This extends the security of the application by allowing short-lived access tokens while maintaining user sessions with longer-lived refresh tokens.
+
+### Database Changes
+1. Created a new table for storing refresh tokens:
+   File: `sql/schema/004_refresh_tokens.sql`
+   ```sql
+   -- +goose Up
+   CREATE TABLE refresh_tokens (
+       token text PRIMARY KEY,
+       created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+       updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+       user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+       expires_at TIMESTAMP NOT NULL,
+       revoked_at TIMESTAMP
+   );
+   
+   -- +goose Down
+   DROP TABLE refresh_tokens;
+   ```
+
+2. Added SQL queries for refresh token operations:
+   File: `sql/queries/refresh_tokens.sql`
+   ```sql
+   -- name: CreateRefreshToken :one
+   INSERT INTO refresh_tokens (token, user_id, expires_at)
+   VALUES ($1, $2, $3)
+   RETURNING *;
+   
+   -- name: GetRefreshToken :one
+   SELECT * FROM refresh_tokens
+   WHERE token = $1;
+   
+   -- name: RevokeRefreshToken :exec
+   UPDATE refresh_tokens
+   SET revoked_at = NOW(), updated_at = NOW()
+   WHERE token = $1;
+   
+   -- name: DeleteExpiredRefreshTokens :exec
+   DELETE FROM refresh_tokens
+   WHERE expires_at < NOW() OR revoked_at IS NOT NULL;
+   
+   -- name: GetUserFromRefreshToken :one
+   SELECT u.id, u.created_at, u.updated_at, u.email, u.hashed_password
+   FROM users u
+   JOIN refresh_tokens rt ON u.id = rt.user_id
+   WHERE rt.token = $1
+   AND rt.expires_at > NOW()
+   AND rt.revoked_at IS NULL;
+   ```
+
+### Refresh Token Generation
+1. Implemented a function to generate cryptographically secure refresh tokens:
+   File: `internal/auth/refresh_token.go`
+   ```go
+   package auth
+
+   import (
+       "crypto/rand"
+       "encoding/hex"
+   )
+   
+   // MakeRefreshToken generates a random 256-bit (32-byte) hex-encoded string
+   // that can be used as a refresh token.
+   func MakeRefreshToken() (string, error) {
+       // Create a byte slice to store the random data
+       randomBytes := make([]byte, 32)
+   
+       // Generate random data
+       if _, err := rand.Read(randomBytes); err != nil {
+           return "", err
+       }
+   
+       // Convert the random data to a hex string
+       tokenString := hex.EncodeToString(randomBytes)
+   
+       return tokenString, nil
+   }
+   ```
+
+### API Endpoint Changes
+1. Updated the login handler to return both access and refresh tokens:
+   File: `handler_login.go`
+   ```go
+   // Generate refresh token
+   refreshToken, err := auth.MakeRefreshToken()
+   if err != nil {
+       log.Printf("Error creating refresh token: %v", err)
+       respondWithError(w, http.StatusInternalServerError, "Error during login")
+       return
+   }
+   
+   // Store refresh token in database with 60 day expiration
+   _, err = cfg.db.CreateRefreshToken(context.Background(), database.CreateRefreshTokenParams{
+       Token:     refreshToken,
+       UserID:    user.ID,
+       ExpiresAt: time.Now().AddDate(0, 0, 60), // 60 days
+   })
+   
+   // Define response type with token and refresh token
+   type loginResponse struct {
+       ID           string    `json:"id"`
+       Email        string    `json:"email"`
+       CreatedAt    time.Time `json:"created_at"`
+       UpdatedAt    time.Time `json:"updated_at"`
+       Token        string    `json:"token"`
+       RefreshToken string    `json:"refresh_token"`
+   }
+   
+   // Return both tokens in response
+   respondWithJSON(w, http.StatusOK, loginResponse{
+       ID:           user.ID.String(),
+       Email:        user.Email,
+       CreatedAt:    user.CreatedAt,
+       UpdatedAt:    user.UpdatedAt,
+       Token:        token,
+       RefreshToken: refreshToken,
+   })
+   ```
+
+2. Created a new endpoint for refreshing access tokens:
+   File: `handler_refresh.go`
+   ```go
+   func (cfg *apiConfig) handlerRefresh(w http.ResponseWriter, r *http.Request) {
+       // Only accept POST requests
+       if r.Method != http.MethodPost {
+           respondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+           return
+       }
+   
+       // Extract the refresh token from the Authorization header
+       refreshToken, err := auth.GetBearerToken(r.Header)
+       if err != nil {
+           respondWithError(w, http.StatusUnauthorized, "Invalid or missing refresh token")
+           return
+       }
+   
+       // Get the user associated with the refresh token
+       // This also validates that the token exists, is not expired, and is not revoked
+       user, err := cfg.db.GetUserFromRefreshToken(context.Background(), refreshToken)
+       if err != nil {
+           if err == sql.ErrNoRows {
+               respondWithError(w, http.StatusUnauthorized, "Invalid, expired, or revoked refresh token")
+               return
+           }
+           log.Printf("Error looking up refresh token: %v", err)
+           respondWithError(w, http.StatusInternalServerError, "Error processing refresh token")
+           return
+       }
+   
+       // Generate a new access token for the user
+       newAccessToken, err := auth.MakeJWT(user.ID, cfg.jwtSecret, time.Hour)
+       if err != nil {
+           log.Printf("Error creating JWT: %v", err)
+           respondWithError(w, http.StatusInternalServerError, "Error generating access token")
+           return
+       }
+   
+       // Return the new access token
+       type refreshResponse struct {
+           Token string `json:"token"`
+       }
+   
+       respondWithJSON(w, http.StatusOK, refreshResponse{
+           Token: newAccessToken,
+       })
+   }
+   ```
+
+3. Created a new endpoint for revoking refresh tokens:
+   File: `handler_revoke.go`
+   ```go
+   func (cfg *apiConfig) handlerRevokeToken(w http.ResponseWriter, r *http.Request) {
+       // Only accept POST requests
+       if r.Method != http.MethodPost {
+           respondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
+           return
+       }
+   
+       // Extract the refresh token from the Authorization header
+       refreshToken, err := auth.GetBearerToken(r.Header)
+       if err != nil {
+           respondWithError(w, http.StatusUnauthorized, "Invalid or missing refresh token")
+           return
+       }
+   
+       // Revoke the token in the database
+       err = cfg.db.RevokeRefreshToken(context.Background(), refreshToken)
+       if err != nil {
+           log.Printf("Error revoking refresh token: %v", err)
+           respondWithError(w, http.StatusInternalServerError, "Error revoking token")
+           return
+       }
+   
+       // Return 204 No Content status
+       w.WriteHeader(http.StatusNoContent)
+   }
+   ```
+
+4. Registered the new endpoints in the main.go file:
+   File: `main.go`
+   ```go
+   mux.HandleFunc("POST /api/refresh", apiCfg.handlerRefresh)
+   mux.HandleFunc("POST /api/revoke", apiCfg.handlerRevokeToken)
+   ```
+
+### Token Expiration
+1. Access tokens (JWTs) are now set to expire after 1 hour
+2. Refresh tokens are set to expire after 60 days
+3. The `expires_in_seconds` parameter was removed from the login endpoint
+
+### Security Considerations
+1. **Token Invalidation**: Refresh tokens can be revoked by setting the `revoked_at` timestamp
+2. **Automatic Cleanup**: The `DeleteExpiredRefreshTokens` function allows for periodic cleanup of expired/revoked tokens
+3. **Cascading Deletion**: When a user is deleted, all their refresh tokens are automatically deleted due to the foreign key constraint with `ON DELETE CASCADE`
+4. **Token Validation**: The refresh endpoint validates that tokens are not expired or revoked before issuing new access tokens
+
+### What I Learned
+1. **Cryptographic Security**: Using `crypto/rand` for secure random token generation instead of `math/rand`
+2. **Token Lifecycle Management**: Implementing token expiration, revocation, and renewal flows
+3. **Database Relationships**: Using foreign keys with cascade delete for related records
+4. **SQL Query Design**: Creating queries that join tables to efficiently validate tokens and retrieve user data
 
 [Back to Table of Contents](#table-of-contents)
