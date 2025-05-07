@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -88,7 +87,7 @@ func (cfg *apiConfig) handlerCreateChirp(w http.ResponseWriter, r *http.Request)
 	cleanedBody := cleanChirp(params.Body)
 
 	// Save the chirp to the database using the user ID from the JWT
-	chirp, err := cfg.db.CreateChirp(context.Background(), database.CreateChirpParams{
+	chirp, err := cfg.db.CreateChirp(r.Context(), database.CreateChirpParams{
 		Body:   cleanedBody,
 		UserID: userID,
 	})

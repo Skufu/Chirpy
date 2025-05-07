@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -48,7 +47,7 @@ func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// Create user with email and hashed password
-	user, err := cfg.db.CreateUser(context.Background(), database.CreateUserParams{
+	user, err := cfg.db.CreateUser(r.Context(), database.CreateUserParams{
 		Email:          reqBody.Email,
 		HashedPassword: hashedPassword,
 	})

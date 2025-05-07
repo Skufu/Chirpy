@@ -1,13 +1,12 @@
 package main
 
 import (
-	"context"
 	"net/http"
 )
 
 func (cfg *apiConfig) handlerListChirps(w http.ResponseWriter, r *http.Request) {
 	// Get all chirps from the database
-	chirps, err := cfg.db.ListChirps(context.Background())
+	chirps, err := cfg.db.ListChirps(r.Context())
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Failed to fetch chirps")
 		return

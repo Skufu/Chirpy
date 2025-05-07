@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"database/sql"
 	"log"
 	"net/http"
@@ -11,12 +10,6 @@ import (
 )
 
 func (cfg *apiConfig) handlerRefresh(w http.ResponseWriter, r *http.Request) {
-	// Only accept POST requests
-	if r.Method != http.MethodPost {
-		respondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
-		return
-	}
-
 	// Extract the refresh token from the Authorization header
 	refreshToken, err := auth.GetBearerToken(r.Header)
 	if err != nil {
@@ -26,7 +19,7 @@ func (cfg *apiConfig) handlerRefresh(w http.ResponseWriter, r *http.Request) {
 
 	// Get the user associated with the refresh token
 	// This also validates that the token exists, is not expired, and is not revoked
-	user, err := cfg.db.GetUserFromRefreshToken(context.Background(), refreshToken)
+	user, err := cfg.db.GetUserFromRefreshToken(r.Context(), refreshToken)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			respondWithError(w, http.StatusUnauthorized, "Invalid, expired, or revoked refresh token")

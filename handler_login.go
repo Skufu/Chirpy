@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"database/sql"
 	"encoding/json"
 	"log"
@@ -13,12 +12,6 @@ import (
 )
 
 func (cfg *apiConfig) handlerLogin(w http.ResponseWriter, r *http.Request) {
-	// Only accept POST requests
-	if r.Method != http.MethodPost {
-		respondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
-		return
-	}
-
 	type requestBody struct {
 		Email    string `json:"email"`
 		Password string `json:"password"`
@@ -40,7 +33,7 @@ func (cfg *apiConfig) handlerLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Look up the user by email
-	user, err := cfg.db.GetUserByEmail(context.Background(), reqBody.Email)
+	user, err := cfg.db.GetUserByEmail(r.Context(), reqBody.Email)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			// User not found, but don't reveal that information
@@ -80,7 +73,7 @@ func (cfg *apiConfig) handlerLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Store refresh token in database with 60 day expiration
-	_, err = cfg.db.CreateRefreshToken(context.Background(), database.CreateRefreshTokenParams{
+	_, err = cfg.db.CreateRefreshToken(r.Context(), database.CreateRefreshTokenParams{
 		Token:     refreshToken,
 		UserID:    user.ID,
 		ExpiresAt: time.Now().AddDate(0, 0, 60), // 60 days

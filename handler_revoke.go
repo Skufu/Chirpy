@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"log"
 	"net/http"
 
@@ -9,12 +8,6 @@ import (
 )
 
 func (cfg *apiConfig) handlerRevokeToken(w http.ResponseWriter, r *http.Request) {
-	// Only accept POST requests
-	if r.Method != http.MethodPost {
-		respondWithError(w, http.StatusMethodNotAllowed, "Method not allowed")
-		return
-	}
-
 	// Extract the refresh token from the Authorization header
 	refreshToken, err := auth.GetBearerToken(r.Header)
 	if err != nil {
@@ -23,7 +16,7 @@ func (cfg *apiConfig) handlerRevokeToken(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Revoke the token in the database
-	err = cfg.db.RevokeRefreshToken(context.Background(), refreshToken)
+	err = cfg.db.RevokeRefreshToken(r.Context(), refreshToken)
 	if err != nil {
 		log.Printf("Error revoking refresh token: %v", err)
 		respondWithError(w, http.StatusInternalServerError, "Error revoking token")

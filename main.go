@@ -29,7 +29,7 @@ func (cfg *apiConfig) handlerReset(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Delete chirps first due to the foreign key constraint
-	err := cfg.db.DeleteAllChirps(context.Background())
+	err := cfg.db.DeleteAllChirps(r.Context())
 	if err != nil {
 		log.Printf("Failed to reset chirps: %v", err)
 		respondWithError(w, http.StatusInternalServerError, "Failed to reset chirps")
@@ -37,7 +37,7 @@ func (cfg *apiConfig) handlerReset(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Delete users after chirps
-	err = cfg.db.DeleteAllUsers(context.Background())
+	err = cfg.db.DeleteAllUsers(r.Context())
 	if err != nil {
 		log.Printf("Failed to reset users: %v", err)
 		respondWithError(w, http.StatusInternalServerError, "Failed to reset users")
@@ -153,6 +153,7 @@ func main() {
 	mux.HandleFunc("POST /api/chirps", apiCfg.handlerCreateChirp)
 	mux.HandleFunc("GET /api/chirps", apiCfg.handlerListChirps)
 	mux.HandleFunc("GET /api/chirps/{chirpID}", apiCfg.handlerGetChirp)
+	mux.HandleFunc("PUT /api/users", apiCfg.handlerUpdateUser)
 
 	server := &http.Server{
 		Addr:    ":" + port,

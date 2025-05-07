@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"database/sql"
 	"log"
 	"net/http"
@@ -11,12 +10,6 @@ import (
 )
 
 func (cfg *apiConfig) handlerGetChirp(w http.ResponseWriter, r *http.Request) {
-	// Only handle GET requests
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
 	// Extract chirp ID from URL path
 	// The URL will be like /api/chirps/91c19d70-286e-4924-b399-da1dd0fb5596
 	path := r.URL.Path
@@ -39,7 +32,7 @@ func (cfg *apiConfig) handlerGetChirp(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Fetch the chirp from the database
-	chirp, err := cfg.db.GetChirp(context.Background(), chirpID)
+	chirp, err := cfg.db.GetChirp(r.Context(), chirpID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			// Chirp not found
