@@ -19,6 +19,7 @@ type apiConfig struct {
 	db             *database.Queries
 	platform       string
 	jwtSecret      string
+	PolkaAPIKey    string
 }
 
 func main() {
@@ -28,6 +29,8 @@ func main() {
 	if err != nil {
 		log.Fatal("Error loading .env file")
 	}
+
+	//Get Polka API Key
 
 	//Connect to Database
 	dbURL := os.Getenv("DB_URL")
@@ -70,6 +73,7 @@ func main() {
 		db:             dbQueries,
 		platform:       os.Getenv("PLATFORM"),
 		jwtSecret:      jwtSecret,
+		PolkaAPIKey:    os.Getenv("POLKA_KEY"),
 	}
 
 	mux := http.NewServeMux()
@@ -79,19 +83,26 @@ func main() {
 	mux.Handle("/app/", fsHandler)
 
 	// Register API endpoints
-	mux.HandleFunc("GET /api/healthz", handlerReadiness)
+	// GET endpoints
 	mux.HandleFunc("GET /admin/metrics", apiCfg.handlerMetrics)
-	mux.HandleFunc("POST /admin/reset", apiCfg.handlerReset)
-	mux.HandleFunc("POST /api/users", apiCfg.handlerCreateUser)
-	mux.HandleFunc("POST /api/login", apiCfg.handlerLogin)
-	mux.HandleFunc("POST /api/refresh", apiCfg.handlerRefresh)
-	mux.HandleFunc("POST /api/revoke", apiCfg.handlerRevokeToken)
-	mux.HandleFunc("POST /api/chirps", apiCfg.handlerCreateChirp)
 	mux.HandleFunc("GET /api/chirps", apiCfg.handlerListChirps)
 	mux.HandleFunc("GET /api/chirps/{chirpID}", apiCfg.handlerGetChirp)
-	mux.HandleFunc("PUT /api/users", apiCfg.handlerUpdateUser)
-	mux.HandleFunc("DELETE /api/chirps/{chirpID}", apiCfg.handlerDeleteChirp)
+	mux.HandleFunc("GET /api/healthz", handlerReadiness)
+
+	// POST endpoints
+	mux.HandleFunc("POST /admin/reset", apiCfg.handlerReset)
+	mux.HandleFunc("POST /api/chirps", apiCfg.handlerCreateChirp)
+	mux.HandleFunc("POST /api/login", apiCfg.handlerLogin)
 	mux.HandleFunc("POST /api/polka/webhooks", apiCfg.handlerPolkaWebhook)
+	mux.HandleFunc("POST /api/refresh", apiCfg.handlerRefresh)
+	mux.HandleFunc("POST /api/revoke", apiCfg.handlerRevokeToken)
+	mux.HandleFunc("POST /api/users", apiCfg.handlerCreateUser)
+
+	// PUT endpoints
+	mux.HandleFunc("PUT /api/users", apiCfg.handlerUpdateUser)
+
+	// DELETE endpoints
+	mux.HandleFunc("DELETE /api/chirps/{chirpID}", apiCfg.handlerDeleteChirp)
 
 	server := &http.Server{
 		Addr:    ":" + port,

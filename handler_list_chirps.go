@@ -1,12 +1,36 @@
 package main
 
 import (
+	"log"
 	"net/http"
+
+	"github.com/Skufu/HTTPS-Bootdev/Chirpy/internal/database"
+	"github.com/google/uuid"
 )
 
 func (cfg *apiConfig) handlerListChirps(w http.ResponseWriter, r *http.Request) {
-	// Get all chirps from the database
-	chirps, err := cfg.db.ListChirps(r.Context())
+	var chirps []database.Chirp
+	var err error
+
+	// Check if author_id query parameter is provided
+	authorIDStr := r.URL.Query().Get("author_id")
+
+	if authorIDStr != "" {
+		// Parse the author_id to UUID
+		authorID, parseErr := uuid.Parse(authorIDStr)
+		if parseErr != nil {
+			log.Printf("Invalid author_id format: %s", parseErr)
+			respondWithError(w, http.StatusBadRequest, "Invalid author_id format")
+			return
+		}
+
+		// Get chirps filtered by author_id
+		chirps, err = cfg.db.GetChirpByUserID(r.Context(), authorID)
+	} else {
+		// Get all chirps (original behavior)
+		chirps, err = cfg.db.ListChirps(r.Context())
+	}
+
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Failed to fetch chirps")
 		return

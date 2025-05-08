@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/Skufu/HTTPS-Bootdev/Chirpy/internal/auth"
 	"github.com/google/uuid"
 )
 
@@ -20,10 +21,22 @@ func (cfg *apiConfig) handlerPolkaWebhook(w http.ResponseWriter, r *http.Request
 		Data  webhookData `json:"data"`
 	}
 
+	//extract APIKEY from header
+	apiKey, err := auth.GetAPIKey(r.Header)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+
+	if apiKey != cfg.PolkaAPIKey {
+		respondWithError(w, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+
 	// Parse the request body
 	var payload webhookPayload
 	decoder := json.NewDecoder(r.Body)
-	err := decoder.Decode(&payload)
+	err = decoder.Decode(&payload)
 	if err != nil {
 		respondWithError(w, http.StatusBadRequest, "Invalid request payload")
 		return

@@ -1432,3 +1432,74 @@ Implemented a refresh token system that allows users to obtain new access tokens
 4. **SQL Query Design**: Creating queries that join tables to efficiently validate tokens and retrieve user data
 
 [Back to Table of Contents](#table-of-contents)
+
+---
+
+# Implementation Log: Adding author_id Filtering to GET /api/chirps Endpoint
+
+**Date:** May 8, 2025  
+**Time:** 20:55 - 21:03  
+
+## Requirement
+Added filtering capability to the GET /api/chirps endpoint by implementing an optional `author_id` query parameter. When provided, the endpoint returns only chirps authored by the specified user; otherwise, it returns all chirps (preserving the original behavior).
+
+## Implementation Approach
+
+### 1. Analysis Phase
+First identified the components that needed modification:
+- SQL query: Needed to ensure filtering by user_id maintained the same sorting order
+- Handler function: Needed to extract and validate the query parameter, then call the appropriate database function
+
+### 2. SQL Query Modification
+The codebase already had a `GetChirpByUserID` query, but it lacked the sorting specification. Updated it to include the same sorting as the original `ListChirps` query:
+
+```sql
+-- name: GetChirpByUserID :many
+SELECT * FROM chirps
+WHERE user_id = $1
+ORDER BY created_at ASC;
+```
+
+This ensured that filtered results would maintain consistent sorting behavior with the non-filtered endpoint.
+
+### 3. Handler Function Modification
+Modified the `handlerListChirps` function in `handler_list_chirps.go` to:
+- Extract the author_id parameter using `r.URL.Query().Get("author_id")`
+- Conditionally query the database based on parameter presence
+- Handle UUID parsing errors with appropriate HTTP 400 response
+- Maintain the existing response format for backward compatibility
+
+```go
+// Check if author_id query parameter is provided
+authorIDStr := r.URL.Query().Get("author_id")
+
+if authorIDStr != "" {
+    // Parse the author_id to UUID
+    authorID, parseErr := uuid.Parse(authorIDStr)
+    if parseErr != nil {
+        log.Printf("Invalid author_id format: %s", parseErr)
+        respondWithError(w, http.StatusBadRequest, "Invalid author_id format")
+        return
+    }
+    
+    // Get chirps filtered by author_id
+    chirps, err = cfg.db.GetChirpByUserID(r.Context(), authorID)
+} else {
+    // Get all chirps (original behavior)
+    chirps, err = cfg.db.ListChirps(r.Context())
+}
+```
+
+### 4. Testing
+Verified functionality through manual testing:
+- Confirmed original behavior when no parameter is provided
+- Verified filtering works when a valid author_id is provided
+- Validated error handling when an invalid UUID is submitted
+- Confirmed correct sorting order in both filtered and unfiltered results
+
+## Conclusion
+The implementation successfully adds filtering capabilities to the GET /api/chirps endpoint while maintaining backward compatibility. The endpoint now supports two modes of operation:
+1. `GET /api/chirps` - Returns all chirps sorted by creation time
+2. `GET /api/chirps?author_id={uuid}` - Returns only chirps authored by the specified user ID, with the same sorting order
+
+This enhancement improves API flexibility, allowing clients to efficiently retrieve chirps from specific authors without requiring client-side filtering.
