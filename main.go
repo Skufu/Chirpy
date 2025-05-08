@@ -21,37 +21,6 @@ type apiConfig struct {
 	jwtSecret      string
 }
 
-func (cfg *apiConfig) handlerReset(w http.ResponseWriter, r *http.Request) {
-	// Check if in dev environment
-	if cfg.platform != "dev" {
-		respondWithError(w, http.StatusForbidden, "Forbidden")
-		return
-	}
-
-	// Delete chirps first due to the foreign key constraint
-	err := cfg.db.DeleteAllChirps(r.Context())
-	if err != nil {
-		log.Printf("Failed to reset chirps: %v", err)
-		respondWithError(w, http.StatusInternalServerError, "Failed to reset chirps")
-		return
-	}
-
-	// Delete users after chirps
-	err = cfg.db.DeleteAllUsers(r.Context())
-	if err != nil {
-		log.Printf("Failed to reset users: %v", err)
-		respondWithError(w, http.StatusInternalServerError, "Failed to reset users")
-		return
-	}
-
-	// Reset hits counter
-	cfg.fileserverHits.Store(0)
-
-	respondWithJSON(w, http.StatusOK, map[string]string{
-		"status": "Reset successful",
-	})
-}
-
 func main() {
 
 	// Load ENV
@@ -76,43 +45,10 @@ func main() {
 	}
 	log.Println("Connected to database successfully")
 
-	// Create tables if they don't exist
-	_, err = db.ExecContext(ctx, `
-	CREATE TABLE IF NOT EXISTS users (
-		id uuid PRIMARY KEY,
-		created_at TIMESTAMP NOT NULL,
-		updated_at TIMESTAMP NOT NULL,
-		email TEXT NOT NULL UNIQUE,
-		hashed_password TEXT NOT NULL DEFAULT 'unset'
-	)`)
-	if err != nil {
-		log.Fatalf("Failed to create users table: %v", err)
-	}
-
-	_, err = db.ExecContext(ctx, `
-	CREATE TABLE IF NOT EXISTS chirps (
-		id uuid PRIMARY KEY,
-		created_at TIMESTAMP NOT NULL,
-		updated_at TIMESTAMP NOT NULL,
-		body TEXT NOT NULL,
-		user_id uuid NOT NULL,
-		FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-	)`)
-	if err != nil {
-		log.Fatalf("Failed to create chirps table: %v", err)
-	}
-
-	_, err = db.ExecContext(ctx, `
-	CREATE TABLE IF NOT EXISTS refresh_tokens (
-		token text PRIMARY KEY,
-		created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-		updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
-		user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-		expires_at TIMESTAMP NOT NULL,
-		revoked_at TIMESTAMP
-	)`)
-	if err != nil {
-		log.Fatalf("Failed to create refresh_tokens table: %v", err)
+	// Run database migrations
+	if err := runDatabaseMigrations(ctx, db); err != nil {
+		log.Printf("Warning: Database migration reported issues: %v", err)
+		// Continue execution even if migrations report tables already exist
 	}
 
 	// Create database queries
@@ -155,6 +91,7 @@ func main() {
 	mux.HandleFunc("GET /api/chirps/{chirpID}", apiCfg.handlerGetChirp)
 	mux.HandleFunc("PUT /api/users", apiCfg.handlerUpdateUser)
 	mux.HandleFunc("DELETE /api/chirps/{chirpID}", apiCfg.handlerDeleteChirp)
+	mux.HandleFunc("POST /api/polka/webhooks", apiCfg.handlerPolkaWebhook)
 
 	server := &http.Server{
 		Addr:    ":" + port,
