@@ -29,3 +29,11 @@ ORDER BY created_at ASC;
 -- name: DeleteChirp :exec
 DELETE FROM chirps
 WHERE id = $1;
+
+-- name: GetItemsAsc :many
+SELECT * FROM chirps
+ORDER BY created_at ASC;
+
+-- name: GetItemsDesc :many
+SELECT * FROM chirps
+ORDER BY created_at DESC;

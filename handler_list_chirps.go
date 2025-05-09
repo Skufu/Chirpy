@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"net/http"
+	"sort"
 
 	"github.com/Skufu/HTTPS-Bootdev/Chirpy/internal/database"
 	"github.com/google/uuid"
@@ -13,6 +14,7 @@ func (cfg *apiConfig) handlerListChirps(w http.ResponseWriter, r *http.Request) 
 	var err error
 
 	// Check if author_id query parameter is provided
+	sortParam := r.URL.Query().Get("sort")
 	authorIDStr := r.URL.Query().Get("author_id")
 
 	if authorIDStr != "" {
@@ -36,6 +38,15 @@ func (cfg *apiConfig) handlerListChirps(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	if sortParam == "desc" {
+		sort.Slice(chirps, func(i, j int) bool {
+			return chirps[i].CreatedAt.After(chirps[j].CreatedAt)
+		})
+	} else {
+		sort.Slice(chirps, func(i, j int) bool {
+			return chirps[i].CreatedAt.Before(chirps[j].CreatedAt)
+		})
+	}
 	// Convert database chirps to response format
 	chirpsResponse := []chirpResponse{}
 	for _, chirp := range chirps {
